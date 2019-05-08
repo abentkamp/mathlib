@@ -344,6 +344,14 @@ theorem total_on_range (s : set α) : (finsupp.total_on α β γ v s).range = �
 by rw [finsupp.total_on, linear_map.range, linear_map.map_cod_restrict, ← linear_map.range_le_iff_comap,
   range_subtype, map_top, linear_map.range_comp, range_subtype]; exact le_of_eq (span_eq_map_total _ _)
 
+theorem total_comp (f : α' → α) :
+  (finsupp.total α' β γ (v ∘ f)) = (finsupp.total α β γ v).comp (lmap_domain γ γ f) :=
+begin
+ ext l,
+ simp [total_apply],
+ rw sum_map_domain_index; simp [add_smul],
+end
+
 end total
 
 protected def dom_lcongr

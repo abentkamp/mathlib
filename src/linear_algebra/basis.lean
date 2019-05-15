@@ -24,34 +24,11 @@ We define the following concepts:
 import linear_algebra.basic linear_algebra.finsupp order.zorn
 noncomputable theory
 
-
-def finset.preimage {α β : Type*} {f : α → β} (hf : function.injective f) (s : finset β) : finset α :=
-(set.finite_preimage hf s.finite_to_set).to_finset
-
--- TODO: rename?
-def finsupp.comap_domain {α₁ α₂ γ : Type*} [has_zero γ]
-  (f : α₁ → α₂) (hf : function.injective f) (l : α₂ →₀ γ) : α₁ →₀ γ :=
-{ support := l.support.preimage hf,
-  to_fun := (λ a, l (f a)),
-  mem_support_to_fun :=
-    begin
-      intros a,
-      simp [finset.preimage, set.finite.to_finset]
-    end }
-
-
-
 open function lattice set submodule
 
 variables {ι : Type*} {ι' : Type*} {α : Type*} {β : Type*} {γ : Type*} {δ : Type*}
           {v : ι → β}
 variables [decidable_eq ι] [decidable_eq ι'] [decidable_eq α] [decidable_eq β] [decidable_eq γ] [decidable_eq δ]
-
-
-lemma finsupp.total_comap_domain {α₁ α₂ : Type*} [ring γ] [decidable_eq α₁] [decidable_eq α₂] [add_comm_group β] [module γ β]
- {v : α₁ → β} (f : α₁ → α₂) (hf : function.injective f) (l : α₂ →₀ γ) :
- finsupp.total α β γ v (finsupp.comap_domain f hf l) = finsupp.total α β γ v l :=
- sorry
 
 section module
 variables [ring α] [add_comm_group β] [add_comm_group γ] [add_comm_group δ]
@@ -186,6 +163,15 @@ linear_independent_Union_of_directed
   ((directed_comp _ _ _).2 $ (directed_on_iff_directed _).1 hs)
   (by simpa using h)
 
+lemma linear_independent_Union_finite___ {η : Type*} {ιs : η → Type*}
+  [decidable_eq η] [∀ j, decidable_eq (ιs j)]
+  {f : Π j : η, ιs j → β}
+  (hl : ∀j, linear_independent α (f j) univ)
+  (hd : ∀i, ∀t:set η, finite t → i ∉ t →
+  disjoint (span α (range (f i))) (⨆i∈t, span α (range (f i)))) :
+  linear_independent α (λ ji : Σ j, ιs j, f ji.1 ji.2) univ :=
+sorry
+
 lemma linear_independent_Union_finite {η : Type*} {f : η → set ι}
   (hl : ∀i, linear_independent α v (f i))
   (hd : ∀i, ∀t:set η, finite t → i ∉ t →
@@ -243,14 +229,54 @@ begin
     exact λ h, false.elim (zero_ne_one.symm h.1) }
 end
 
-#check linear_independent.injective
-lemma linear_independent.id_of_univ
-  (h : linear_independent α v univ) : linear_independent α id (v '' s) :=
+lemma linear_independent.id_of_univ (zero_ne_one : (0 : α) ≠ 1)
+  (h : linear_independent α v univ) : linear_independent α id (range v) :=
 begin
-  rw linear_independent_univ_iff_inj at h,
   rw linear_independent_iff,
   intros l hl₁ hl₂,
-  have := h (finsupp.comap_domain v sorry l),
+  have h_bij : bij_on v (v ⁻¹' finset.to_set (l.support)) (finset.to_set (l.support)),
+  {
+    apply bij_on.mk,
+    { rw maps_to',
+      apply image_preimage_subset },
+    { unfold inj_on,
+      intros i₁ i₂ hi₁ hi₂ hi,
+      apply linear_independent.injective zero_ne_one h _ _ (mem_univ _) (mem_univ _) hi,
+     },
+    { intros x hx,
+      apply exists.elim (mem_range.1 ((finsupp.mem_supported α l).2 hl₁ hx)),
+      intros x' hx',
+      rw mem_image,
+      use x',
+      split,
+      { rwa [mem_preimage_eq, hx'] },
+      { exact hx' } },
+  },
+  rw linear_independent_univ_iff_inj at h,
+  rw finsupp.total_apply at hl₂,
+  rw finsupp.sum at hl₂,
+  have := h (finsupp.comap_domain v l (set.inj_on_of_bij_on h_bij)),
+  rw finsupp.total_comap_domain at this,
+  rw finset.sum_preimage v l.support (set.inj_on_of_bij_on h_bij) (λ (x : β), l x • x) at this,
+  have := this hl₂,
+  apply finsupp.eq_zero_of_comap_domain_eq_zero _ _ h_bij this,
+end
+
+lemma linear_independent.univ_of_id (hv : injective v)
+  (h : linear_independent α id (range v)) : linear_independent α v univ :=
+begin
+  rw linear_independent_iff at *,
+  intros l hl₁ hl₂,
+  apply finsupp.injective_map_domain hv,
+  apply h (l.map_domain v),
+  { rw finsupp.mem_supported,
+    intros x hx,
+    have := finset.mem_coe.2 (finsupp.map_domain_support hx),
+    rw finset.coe_image at this,
+    apply set.image_subset_range _ _ this },
+  { rw finsupp.total_map_domain _ _ hv,
+    rw left_id,
+    exact hl₂ }
 end
 
 def linear_independent.total_equiv : finsupp.supported α α s ≃ₗ span α (v '' s) :=
@@ -358,12 +384,6 @@ begin
   apply @finsupp.injective_map_domain _ (subtype s) ι,
   { apply subtype.val_injective },
   { simpa },
-end
-
-lemma linear_independent.id_image (hs : linear_independent α v s) :
-  linear_independent α id (v '' s) :=
-begin
-  sorry
 end
 
 end repr
@@ -799,25 +819,29 @@ let ⟨u, hust, hsu, eq⟩ := exists_of_linear_independent_of_finite_span hs thi
 have finite s, from finite_subset u.finite_to_set hsu,
 ⟨this, by rw [←eq]; exact (finset.card_le_of_subset $ finset.coe_subset.mp $ by simp [hsu])⟩
 
-#check linear_independent.image
-
-lemma exists_left_inverse_linear_map_of_injective {f : β →ₗ[α] γ}
+lemma exists_left_inverse_linear_map_of_injective {f : β →ₗ[α] γ} (zero_ne_one : (0 : α) ≠ 1)
   (hf_inj : f.ker = ⊥) : ∃g:γ →ₗ β, g.comp f = linear_map.id :=
 begin
   rcases exists_is_basis α β with ⟨B, hB⟩,
-  have := hB.1,
-  rcases exists_subset_is_basis this with ⟨C, BC, hC⟩,
-  --have : linear_independent α id (f '' B) :=
-    --hB.1.image (by simp [hf_inj]),
-/- rcases exists_is_basis α β with ⟨B, hB⟩,
-  have : linear_independent α id (f '' B) :=
-    hB.1.image (by simp [hf_inj]),
+  have hB₀ : _ := linear_independent.id_of_univ zero_ne_one hB.1,
+  have : linear_independent α id (f '' B),
+  { have := hB₀.image (show disjoint (span α (range (λ i : B, i.val))) (linear_map.ker f), by simp [hf_inj]),
+    simp at this,
+    exact this },
   rcases exists_subset_is_basis this with ⟨C, BC, hC⟩,
   haveI : inhabited β := ⟨0⟩,
-  refine ⟨hC.constr (inv_fun f), hB.ext $ λ b bB, _⟩,
+  use hC.constr (function.restrict (inv_fun f) C : C → β),
+  apply @is_basis.ext _ _ _ _ _ _ _ _ (show decidable_eq β, by assumption) _ _ _ _ _ _ _ hB,
+  intros b,
   rw image_subset_iff at BC,
-  simp [constr_basis hC (BC bB)],
-  exact left_inverse_inv_fun (linear_map.ker_eq_bot.1 hf_inj) _-/
+  simp,
+  have := BC (subtype.mem b),
+  rw mem_preimage_eq at this,
+  have : f (b.val) = (subtype.mk (f ↑b) (begin rw ←mem_preimage_eq, exact BC (subtype.mem b) end) : C).val,
+    by simp; unfold_coes,
+  rw this,
+  rw [constr_basis hC],
+  exact left_inverse_inv_fun (linear_map.ker_eq_bot.1 hf_inj) _,
 end
 
 lemma exists_right_inverse_linear_map_of_surjective {f : β →ₗ[α] γ}
@@ -825,8 +849,10 @@ lemma exists_right_inverse_linear_map_of_surjective {f : β →ₗ[α] γ}
 begin
   rcases exists_is_basis α γ with ⟨C, hC⟩,
   haveI : inhabited β := ⟨0⟩,
-  refine ⟨hC.constr (inv_fun f), hC.ext $ λ c cC, _⟩,
-  simp [constr_basis hC cC],
+  use hC.constr (function.restrict (inv_fun f) C : C → β),
+  apply @is_basis.ext _ _ _ _ _ _ _ _ (show decidable_eq γ, by assumption) _ _ _ _ _ _ _ hC,
+  intros c,
+  simp [constr_basis hC],
   exact right_inverse_inv_fun (linear_map.range_eq_top.1 hf_surj) _
 end
 
@@ -851,19 +877,20 @@ begin
 end
 
 open fintype
-variables (b : set β) (h : is_basis α b)
+variables (h : is_basis α v)
 
 local attribute [instance] submodule.module
 
-noncomputable def equiv_fun_basis [fintype b] : β ≃ (b → α) :=
-calc β ≃ finsupp.supported α α b : (module_equiv_finsupp h).to_equiv
-   ... ≃ (b →₀ α)                : finsupp.restrict_support_equiv b
-   ... ≃ (b → α)                 : finsupp.equiv_fun_on_fintype
+noncomputable def equiv_fun_basis [fintype ι] : β ≃ (ι → α) :=
+calc β ≃ finsupp.supported α α (univ : set ι) : (module_equiv_finsupp h).to_equiv
+   ... ≃ ((univ : set ι) →₀ α)                : finsupp.restrict_support_equiv _
+   ... ≃ (ι →₀ α)                             : finsupp.dom_congr (equiv.set.univ ι)
+   ... ≃ (ι → α)                              : finsupp.equiv_fun_on_fintype
 
-theorem vector_space.card_fintype [fintype α] [fintype β] [decidable_pred (λ x, x ∈ b)] :
-  card β = (card α) ^ (card b) :=
-calc card β = card (b → α)    : card_congr (equiv_fun_basis b h)
-        ... = card α ^ card b : card_fun
+theorem vector_space.card_fintype [fintype ι] [fintype α] [fintype β] :
+  card β = (card α) ^ (card ι) :=
+calc card β = card (ι → α)    : card_congr (equiv_fun_basis h)
+        ... = card α ^ card ι : card_fun
 
 theorem vector_space.card_fintype' [fintype α] [fintype β] :
   ∃ n : ℕ, card β = (card α) ^ n :=
@@ -872,7 +899,7 @@ begin
   intros b hb,
   haveI := classical.dec_pred (λ x, x ∈ b),
   use card b,
-  exact  vector_space.card_fintype b hb,
+  exact vector_space.card_fintype hb,
 end
 
 end vector_space
@@ -881,8 +908,15 @@ namespace pi
 open set linear_map
 
 section module
-variables {φ : ι → Type*}
-variables [ring α] [∀i, add_comm_group (φ i)] [∀i, module α (φ i)] [fintype ι] [decidable_eq ι]
+variables {η : Type*} {ιs : η → Type*} {φ : η → Type*}
+variables [ring α] [∀i, add_comm_group (φ i)] [∀i, module α (φ i)] [fintype η] [decidable_eq η]
+
+
+
+lemma linear_independent_std_basis [∀ j, decidable_eq (ιs j)]  [∀ i, decidable_eq (φ i)]
+  (s : Πj, ιs j → (φ j)) (hs : ∀i, linear_independent α (s i) univ) :
+  linear_independent α (λ (ji : Σ j, ιs j), std_basis α φ ji.1 (s ji.1 ji.2)) univ :=
+begin
 
 lemma linear_independent_std_basis [∀ i, decidable_eq (φ i)]
   (s : Πi, set (φ i)) (hs : ∀i, linear_independent α id (s i)) :
@@ -895,7 +929,7 @@ begin
   { assume i J _ hiJ,
     simp only [set.image_id],
     simp [(set.Union.equations._eqn_1 _).symm, submodule.span_image, submodule.span_Union],
-    have h₁ : map (std_basis α φ i) (span α (s i)) ≤ (⨆j∈({i} : set ι), range (std_basis α φ j)),
+    have h₁ : map (std_basis α φ i) (span α (s i)) ≤ (⨆j∈({i} : set η), range (std_basis α φ j)),
     { exact (le_supr_of_le i $ le_supr_of_le (set.mem_singleton _) $ map_mono $ le_top) },
     have h₂ : (⨆j∈J, map (std_basis α φ j) (span α (s j))) ≤ (⨆j∈J, range (std_basis α φ j)),
     { exact supr_le_supr (assume i, supr_le_supr $ assume hi, map_mono $ le_top) },
@@ -903,14 +937,21 @@ begin
       (disjoint_std_basis_std_basis _ _ _ _ $ set.disjoint_singleton_left.2 hiJ) }
 end
 
-lemma is_basis_std_basis [fintype ι] [∀ i, decidable_eq (φ i)]
-  (s : Πi, set (φ i)) (hs : ∀i, is_basis α (s i)) :
-  is_basis α (⋃i, std_basis α φ i '' s i) :=
+lemma is_basis_std_basis [fintype ι] [∀ j, decidable_eq (ιs j)] [∀ j, decidable_eq (φ j)]
+  (s : Πj, ιs j → (φ j)) (hs : ∀j, is_basis α (s j)) :
+  is_basis α (λ (ji : Σ j, ιs j), std_basis α φ ji.1 (s ji.1 ji.2)) :=
 begin
-  refine ⟨linear_independent_std_basis _ (assume i, (hs i).1), _⟩,
-  simp only [submodule.span_Union, submodule.span_image, (assume i, (hs i).2), submodule.map_top,
-    supr_range_std_basis]
+  split,
+  apply linear_independent.univ_of_id,
+  { sorry },
+  --{ apply linear_independent_std_basis },
 end
+ -- is_basis α (λ (ji : Σ j, ιs j), (std_basis α φ ji.1).to_fun  (s ji.1 ji.2)) :=
+--begin
+--  refine ⟨linear_independent_std_basis _ (assume i, (hs i).1), _⟩,
+--  simp only [submodule.span_Union, submodule.span_image, (assume i, (hs i).2), submodule.map_top,
+--    supr_range_std_basis]
+--end
 
 section
 variables (α ι)

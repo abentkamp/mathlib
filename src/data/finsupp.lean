@@ -27,6 +27,19 @@ variables {α : Type*} {β : Type*} {γ : Type*} {δ : Type*} {ι : Type*}
 
 reserve infix ` →₀ `:25
 
+#check set.image_preimage_subset
+
+-- TODO: move? But depends on set... (Alex)
+noncomputable def finset.preimage {α β : Type*} {f : α → β} (s : finset β)
+  (hf : set.inj_on f (f ⁻¹' s.to_set)) : finset α :=
+set.finite.to_finset (set.finite_of_finite_image_on hf
+    (set.finite_subset s.finite_to_set (set.image_preimage_subset _ _)))
+
+lemma finset.sum_preimage {α β γ: Type*} [add_comm_monoid γ] (f : α → β) (s : finset β)
+  (hf : set.inj_on f (f ⁻¹' s.to_set)) (g : β → γ) :
+  (finset.preimage s hf).sum (g ∘ f) = s.sum g  :=
+  sorry
+
 /-- `finsupp α β`, denoted `α →₀ β`, is the type of functions `f : α → β` such that
   `f x = 0` for all but finitely many `x`. -/
 structure finsupp (α : Type*) (β : Type*) [has_zero β] :=
@@ -155,6 +168,10 @@ begin
     { refl },
     { rw [single_zero, single_zero] } }
 end
+
+lemma single_swap {α β : Type*} [decidable_eq α] [decidable_eq β] [has_zero β] (a₁ a₂ : α) (b : β) :
+  (single a₁ b : α → β) a₂ = (single a₂ b : α → β) a₁ :=
+by simp [single_apply]; ac_refl
 
 end single
 
@@ -714,6 +731,53 @@ begin
 end
 
 end map_domain
+
+section comap_domain
+
+-- TODO: rename? (Alex)
+noncomputable def comap_domain {α₁ α₂ γ : Type*} [has_zero γ]
+  (f : α₁ → α₂) (l : α₂ →₀ γ) (hf : set.inj_on f (f ⁻¹' l.support.to_set)) : α₁ →₀ γ :=
+{ support := l.support.preimage hf,
+  to_fun := (λ a, l (f a)),
+  mem_support_to_fun :=
+    begin
+      intros a,
+      simp [finset.preimage, set.finite.to_finset],
+      exact l.mem_support_to_fun (f a),
+    end }
+
+lemma comap_domain_apply {α₁ α₂ γ : Type*} [has_zero γ]
+  (f : α₁ → α₂) (l : α₂ →₀ γ) (hf : set.inj_on f (f ⁻¹' l.support.to_set)) (a : α₁) :
+  comap_domain f l hf a = l (f a) :=
+begin
+  unfold_coes,
+  unfold comap_domain,
+  simp,
+  refl
+end
+
+lemma eq_zero_of_comap_domain_eq_zero {α₁ α₂ γ : Type*}
+  [add_comm_monoid γ] [decidable_eq α₁] [decidable_eq α₂] [decidable_eq γ]
+  (f : α₁ → α₂) (l : α₂ →₀ γ) (hf : set.bij_on f (f ⁻¹' l.support.to_set) l.support.to_set)
+  (h : comap_domain f l (set.inj_on_of_bij_on hf) = 0) : l = 0 :=
+begin
+  ext a,
+  have h_preimage : ∀ a' (ha' : f a' = a), l a = 0,
+  {
+    intros a' ha',
+    rw [← ha', ← comap_domain_apply, h],
+    refl,
+  },
+  simp,
+  by_contradiction h_contr,
+  { exfalso,
+    apply exists.elim ((set.mem_image _ _ _).1 (set.surj_on_of_bij_on hf (mem_support_iff.2 h_contr))),
+    intros a' ha',
+    apply h_contr (h_preimage a' ha'.2)
+  }
+end
+
+end comap_domain
 
 /-- The product of `f g : α →₀ β` is the finitely supported function
   whose value at `a` is the sum of `f x * g y` over all pairs `x, y`

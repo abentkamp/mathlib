@@ -35,10 +35,11 @@ noncomputable def finset.preimage {α β : Type*} {f : α → β} (s : finset β
 set.finite.to_finset (set.finite_of_finite_image_on hf
     (set.finite_subset s.finite_to_set (set.image_preimage_subset _ _)))
 
-lemma finset.sum_preimage {α β γ: Type*} [add_comm_monoid γ] (f : α → β) (s : finset β)
-  (hf : set.inj_on f (f ⁻¹' s.to_set)) (g : β → γ) :
-  (finset.preimage s hf).sum (g ∘ f) = s.sum g  :=
-  sorry
+-- TODO: not true!
+--lemma finset.sum_preimage {α β γ: Type*} [add_comm_monoid γ] (f : α → β) (s : finset β)
+--  (hf : set.inj_on f (f ⁻¹' s.to_set)) (g : β → γ) :
+--  (finset.preimage s hf).sum (g ∘ f) = s.sum g  :=
+--  sorry
 
 /-- `finsupp α β`, denoted `α →₀ β`, is the type of functions `f : α → β` such that
   `f x = 0` for all but finitely many `x`. -/
@@ -755,7 +756,15 @@ begin
   simp,
   refl
 end
-
+/- TODO: NOT TRUE
+lemma sum_comap_domain {α₁ α₂ β γ : Type*} [has_zero β] [add_comm_monoid γ]
+  (f : α₁ → α₂) (l : α₂ →₀ β) (g : α₂ → β → γ) (hf : set.inj_on f (f ⁻¹' l.support.to_set)):
+  (comap_domain f l hf).sum (g ∘ f) = l.sum g :=
+begin
+  unfold sum,
+  simp only [comap_domain, comap_domain_apply, finset.sum_preimage f _ _ (λ (x : α₂), g x (l x))]
+end
+-/
 lemma eq_zero_of_comap_domain_eq_zero {α₁ α₂ γ : Type*}
   [add_comm_monoid γ] [decidable_eq α₁] [decidable_eq α₂] [decidable_eq γ]
   (f : α₁ → α₂) (l : α₂ →₀ γ) (hf : set.bij_on f (f ⁻¹' l.support.to_set) l.support.to_set)
@@ -1309,5 +1318,76 @@ protected def dom_congr [decidable_eq α₁] [decidable_eq α₂] [decidable_eq 
     simp only [map_domain_comp.symm, (∘), equiv.apply_symm_apply],
     exact map_domain_id
   end⟩
+
+section sigma
+
+variables {αs : ι → Type*} [decidable_eq ι] [has_zero β] (l : (Σ i, αs i) →₀ β)
+
+noncomputable def split (i : ι) : αs i →₀ β :=
+l.comap_domain (sigma.mk i) (λ x1 x2 _ _ hx, heq_iff_eq.1 (sigma.mk.inj hx).2)
+
+lemma split_apply (i : ι) (x : αs i) : split l i x = l ⟨i, x⟩ :=
+begin
+ dunfold split,
+ rw comap_domain_apply
+end
+
+def split_support : finset ι := finset.image (sigma.fst) l.support
+
+lemma mem_split_support_iff_nonzero (i : ι) :
+  i ∈ split_support l ↔ split l i ≠ 0 :=
+begin
+  split,
+  { intros hi h0,
+    unfold split_support at hi,
+    unfold split at h0,
+    rw mem_image at hi,
+    rcases hi with ⟨x, hx₁, hx₂⟩,
+    cases x,
+    rw mem_support_iff at hx₁,
+    rw ←hx₂ at h0,
+    have : comap_domain (sigma.mk x_fst) l _ x_snd = 0,
+    { rw h0,
+      simp },
+    rw comap_domain_apply at this,
+    exact hx₁ this },
+  { intros h,
+    unfold split_support,
+    unfold split at h,
+    rw mem_image,
+    have := imp_false.1 (λ h1, h (finsupp.ext h1)),
+    haveI := classical.dec,
+    rw [not_forall] at this,
+    rcases this with ⟨a, ha⟩,
+    use ⟨i, a⟩,
+    simp [comap_domain_apply] at ha,
+    rw mem_support_iff,
+    use ha }
+end
+
+lemma sigma_support : l.support = l.split_support.sigma (λ i, (l.split i).support) :=
+begin
+  apply finset.subset.antisymm,
+  { intros x hx,
+    rcases x with ⟨i, x⟩,
+    rw mem_sigma,
+    split,
+    { rw [split_support, mem_image],
+      use ⟨i, x⟩,
+      use hx },
+    { simpa [split, comap_domain_apply] using hx } },
+  { intros x hx,
+    rcases x with ⟨i, x⟩,
+    rw mem_sigma at hx,
+    have := hx.2,
+    rw [mem_support_iff, split_apply] at this,
+    rwa mem_support_iff }
+end
+
+lemma sigma_sum [add_comm_monoid γ] (f : (Σ (i : ι), αs i) → β → γ) :
+  l.sum f = (split_support l).sum (λ (i : ι), (split l i).sum (λ (a : αs i) b, f ⟨i, a⟩ b)) :=
+by simp [sum, sigma_support, sum_sigma,split_apply]
+
+end sigma
 
 end finsupp

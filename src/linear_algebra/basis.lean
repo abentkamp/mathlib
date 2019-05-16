@@ -163,14 +163,40 @@ linear_independent_Union_of_directed
   ((directed_comp _ _ _).2 $ (directed_on_iff_directed _).1 hs)
   (by simpa using h)
 
-lemma linear_independent_Union_finite___ {η : Type*} {ιs : η → Type*}
+#check submodule.mk
+
+--
+--lemma linear_independent_iff_not_mem_span : linear_independent α id s ↔ (∀x∈s, x ∉ span α (s \ {x})) :=
+
+lemma linear_independent_Union_finite {η : Type*} {ιs : η → Type*}
   [decidable_eq η] [∀ j, decidable_eq (ιs j)]
   {f : Π j : η, ιs j → β}
-  (hl : ∀j, linear_independent α (f j) univ)
+  (hindep : ∀j, linear_independent α (f j) univ)
   (hd : ∀i, ∀t:set η, finite t → i ∉ t →
   disjoint (span α (range (f i))) (⨆i∈t, span α (range (f i)))) :
   linear_independent α (λ ji : Σ j, ιs j, f ji.1 ji.2) univ :=
-sorry
+begin
+
+  simp only [linear_independent_univ_iff_inj, finsupp.total_apply, finsupp.lsum_apply, finsupp.sigma_sum],
+  intros l hl,
+
+have : ∀ i, finsupp.sum (finsupp.split l i) (λ (a : ιs i) (b : α), b • f i a) ∈ span α (range (f i)) :=
+begin
+  intros i,
+  unfold finsupp.sum,
+  haveI := classical.dec_eq (ιs i),
+  apply sum_mem _ _,
+  assumption,
+  intros a ha,
+  apply smul_mem _ _ _,
+  apply subset_span (mem_range_self _),
+end,
+
+ simp only [linear_independent_univ_iff_inj, finsupp.total_apply, finsupp.lsum_apply] at hindep,
+ have := λ i, hindep i (finsupp.split l i),
+ simp [this],
+
+end
 
 lemma linear_independent_Union_finite {η : Type*} {f : η → set ι}
   (hl : ∀i, linear_independent α v (f i))
@@ -257,9 +283,11 @@ begin
   rw finsupp.sum at hl₂,
   have := h (finsupp.comap_domain v l (set.inj_on_of_bij_on h_bij)),
   rw finsupp.total_comap_domain at this,
-  rw finset.sum_preimage v l.support (set.inj_on_of_bij_on h_bij) (λ (x : β), l x • x) at this,
-  have := this hl₂,
-  apply finsupp.eq_zero_of_comap_domain_eq_zero _ _ h_bij this,
+  apply finsupp.eq_zero_of_comap_domain_eq_zero _ _ h_bij,
+  apply this,
+  --rw finset.sum_preimage v l.support (set.inj_on_of_bij_on h_bij) (λ (x : β), l x • x) at this,
+  --have := this hl₂,
+  sorry
 end
 
 lemma linear_independent.univ_of_id (hv : injective v)

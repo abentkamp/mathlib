@@ -1365,6 +1365,21 @@ begin
     use ha }
 end
 
+noncomputable def split_comp [has_zero γ] (g : Π i, (αs i →₀ β) → γ) (hg : ∀ i x, x = 0 ↔ g i x = 0)
+  : ι →₀ γ :=
+{
+  support := split_support l,
+  to_fun := λ i, g i (split l i),
+  mem_support_to_fun :=
+  begin
+    intros i,
+    rw mem_split_support_iff_nonzero,
+    haveI := classical.dec,
+    rwa not_iff_not,
+    exact hg _ _,
+  end
+}
+
 lemma sigma_support : l.support = l.split_support.sigma (λ i, (l.split i).support) :=
 begin
   apply finset.subset.antisymm,

@@ -165,62 +165,152 @@ linear_independent_Union_of_directed
 
 #check submodule.mk
 
---
---lemma linear_independent_iff_not_mem_span : linear_independent α id s ↔ (∀x∈s, x ∉ span α (s \ {x})) :=
+
+def restrict' {α β} (f : α → β) (s : set α) : s → β := λ x, f x.val
+
+lemma restrict_apply {α : Type*} (f : α → β) (s : set α) (a : subtype s) : restrict' f s a = f a := rfl
+
+lemma image_restrict {α β : Type*} (f : α → β) (s : set α) (t : set s) :
+  restrict' f s '' t = f '' (subtype.val '' t) :=
+begin
+  ext,
+  simp [mem_image],
+  unfold restrict',
+  split,
+  { intros h,
+    rcases h with ⟨a,ha₁,ha₂,ha₃⟩,
+    use a,
+    use ha₁,
+    use ha₂,
+    exact ha₃ },
+  { intros h,
+    rcases h with ⟨a,⟨ha₁,ha₂⟩,ha₃⟩,
+    use a,
+    use ha₁,
+    exact ⟨ha₂, ha₃⟩ }
+end
+
+lemma subtype.val_image_diff {α : Type*} {p : α → Prop} (s t : set (subtype p)) :
+  subtype.val '' (s \ t) = (subtype.val '' s \ subtype.val '' t) :=
+begin
+  ext x,
+  rw mem_diff,
+  rw mem_image,
+  split,
+  { intro h,
+    split,
+    apply mono_image (diff_subset _ _) h,
+    intro h',
+    rcases h with ⟨a, ⟨ha₁, ha₂⟩⟩,
+    rcases h' with ⟨b, ⟨hb₁, hb₂⟩⟩,
+    apply not_mem_of_mem_diff ha₁,
+    convert hb₁,
+    apply subtype.eq',
+    rw [ha₂, hb₂] },
+  { intro h,
+    simp only [mem_image] at h,
+    simp only [not_exists, not_and'] at h,
+    rcases h.1 with ⟨a , ha⟩,
+    use a,
+    exact ⟨(mem_diff _).2 ⟨ha.1, h.2 _ ha.2⟩, ha.2⟩ }
+end
+
+-- TODO remove
+lemma smul_mem_span {α β : Type*} [ring α] [add_comm_group β] [module α β]
+  (a : α) {x : β} {s : set β} (h : x ∈ span α s) :
+  a • x ∈ span α s :=
+submodule.smul _ _ h --mem_span.2 (λ p hp, smul_mem _ _ (mem_span.1 h _ hp))
+
 
 lemma linear_independent_Union_finite {η : Type*} {ιs : η → Type*}
   [decidable_eq η] [∀ j, decidable_eq (ιs j)]
   {f : Π j : η, ιs j → β}
   (hindep : ∀j, linear_independent α (f j) univ)
-  (hd : ∀i, ∀t:set η, finite t → i ∉ t →
-  disjoint (span α (range (f i))) (⨆i∈t, span α (range (f i)))) :
+  (zero_ne_one : (0 : α) ≠ 1)
+  --(hd : ∀i, ∀t:set η, finite t → i ∉ t →
+  --disjoint (span α (range (f i))) (⨆i∈t, span α (range (f i))))
+  (hd : ∀ (s : set η) (g : s → β), (∀ i : s, g i ∈ span α (range (f i))) → linear_independent α g univ)
+  :
   linear_independent α (λ ji : Σ j, ιs j, f ji.1 ji.2) univ :=
 begin
-
   simp only [linear_independent_univ_iff_inj, finsupp.total_apply, finsupp.lsum_apply, finsupp.sigma_sum],
   intros l hl,
-
-have : ∀ i, finsupp.sum (finsupp.split l i) (λ (a : ιs i) (b : α), b • f i a) ∈ span α (range (f i)) :=
-begin
-  intros i,
-  unfold finsupp.sum,
-  haveI := classical.dec_eq (ιs i),
-  apply sum_mem _ _,
-  assumption,
-  intros a ha,
-  apply smul_mem _ _ _,
-  apply subset_span (mem_range_self _),
-end,
-
- simp only [linear_independent_univ_iff_inj, finsupp.total_apply, finsupp.lsum_apply] at hindep,
- have := λ i, hindep i (finsupp.split l i),
- simp [this],
-
-end
-
-lemma linear_independent_Union_finite {η : Type*} {f : η → set ι}
-  (hl : ∀i, linear_independent α v (f i))
-  (hd : ∀i, ∀t:set η, finite t → i ∉ t →
-  disjoint (span α (v '' (f i))) (⨆i∈t, span α (v '' (f i)))) :
-  linear_independent α v (⋃i, f i) :=
-begin
-  haveI := classical.dec_eq η,
-  rw [Union_eq_Union_finset f],
-  refine linear_independent_Union_of_directed (directed_of_sup _) _,
-  exact (assume t₁ t₂ ht, Union_subset_Union $ assume i, Union_subset_Union_const $ assume h, ht h),
-  assume t, rw [set.Union, ← finset.sup_eq_supr],
-  refine t.induction_on _ _,
-  { exact linear_independent_empty },
-  { rintros ⟨i⟩ s his ih,
-    rw [finset.sup_insert],
-    refine linear_independent_union (hl _) ih _,
-    rw [finset.sup_eq_supr],
-    refine disjoint_mono (le_refl _) _ (hd i _ _ his),
-    { simp only [(span_Union _).symm, set.image_Union],
-      refine span_mono (@supr_le_supr2 (set β) _ _ _ _ _ _),
-      rintros ⟨i⟩, exact ⟨i, le_refl _⟩ },
-    { change finite (plift.up ⁻¹' s.to_set),
-      exact finite_preimage (assume i j, plift.up.inj) s.finite_to_set } }
+  let subsums := λ i, finsupp.sum (finsupp.split l i) (λ (a : ιs i) (b : α), b • f i a),
+  have h_subsums_in_span : ∀ i, subsums i ∈ span α (range (f i)),
+  { intros i,
+    dsimp [subsums],
+    unfold finsupp.sum,
+    haveI := classical.dec_eq (ιs i),
+    apply sum_mem _ _,
+    assumption,
+    intros a ha,
+    apply smul_mem _ _ _,
+    apply subset_span (mem_range_self _) },
+  have h_subsums_neq_0: ∀ i ∈ (finsupp.split_support l), subsums i ≠ 0,
+  { simp only [linear_independent_univ_iff_inj, finsupp.total_apply, finsupp.lsum_apply] at hindep,
+    intros i hi_mem hi0,
+    rw finsupp.mem_split_support_iff_nonzero at hi_mem,
+    exact hi_mem (hindep i (finsupp.split l i) hi0) },
+  have h_image_subsums : ∀ t, subsums '' t ⊆ span α (⋃i∈t, range (f i)),
+  { intros t x hx,
+    rw mem_image at hx,
+    rcases hx with ⟨i, hi₁, hi₂⟩,
+    rw ←hi₂,
+    apply span_mono _ (h_subsums_in_span i),
+    apply subset_bUnion_of_mem hi₁ },
+  /-have h_linindep_subsums : linear_independent α (restrict' subsums ↑(finsupp.split_support l)) univ,
+  { rw linear_independent_iff_not_smul_mem_span,
+    intros i hi a h_subsums_in_span',
+    by_contradiction,
+    apply h_subsums_neq_0 i (finset.mem_coe.1 (subtype.mem _)),
+    have := disjoint_def.1 (hd i (↑(finsupp.split_support l) \ {i})
+      (set.finite_subset (finset.finite_to_set _) (set.diff_subset _ _))
+      (by simp)) (a • subsums i) (smul_mem_span a (h_subsums_in_span i)),
+    rw restrict_apply at h_subsums_in_span',
+    rw [image_restrict subsums ↑(finsupp.split_support l), subtype.val_image_diff,
+        image_singleton, subtype.val_image_univ] at h_subsums_in_span',
+    rw ←span_span,
+    apply span_mono (h_image_subsums _),
+    have := h_subsums_in_span', },-/
+  have h_linindep_subsums : linear_independent α (restrict' subsums ↑(finsupp.split_support l)) univ,
+  {
+    apply hd,
+    intros i,
+    rw restrict_apply,
+    apply h_subsums_in_span
+  },
+  let const1 := finsupp.on_finset finset.univ (λ _, (1 : α)) (λ _ _, finset.mem_univ _),
+    -- ↥↑(finsupp.split_support l) →₀ α
+  have h_const_eq_0 : const1 = 0,
+  { apply linear_independent_univ_iff_inj.1 h_linindep_subsums,
+    simp [finsupp.total_apply],
+    unfold finsupp.sum,
+    simp [finsupp.on_finset, zero_ne_one.symm, restrict_apply],
+    rw ←hl,
+    convert (finset.sum_image _).symm,
+    { dsimp only [const1, finsupp.on_finset],
+      simp [zero_ne_one.symm],
+      apply finset.coe_inj.1,
+      simp,
+      refl },
+    { assumption },
+    { intros _ _ _ _ h,
+      apply subtype.eq',
+      exact h } },
+  have h_split_support : finsupp.split_support l = finset.image (λ (x : (finsupp.split_support l).to_set), ↑x) const1.support,
+  { dsimp only [const1, finsupp.on_finset],
+    simp [zero_ne_one.symm],
+    apply finset.coe_inj.1,
+    simp,
+    refl -- <- TODO: this is repeated above, maybe separate "have"?
+    },
+  have h_split_support_empty: finsupp.split_support l = ∅,
+  { rw [h_split_support, h_const_eq_0],
+    simp,
+    refl },
+  { unfold finsupp.split_support at h_split_support_empty,
+    rwa [finset.image_eq_empty, finsupp.support_eq_empty] at h_split_support_empty },
+  { apply finset_coe.fintype }
 end
 
 section repr
@@ -724,14 +814,25 @@ end
 
 set_option class.instance_max_depth 32
 
-lemma linear_independent_iff_not_mem_span : linear_independent α id s ↔ (∀x∈s, x ∉ span α (s \ {x})) :=
+lemma linear_independent_iff_not_mem_span_old : linear_independent α id s ↔ (∀x∈s, x ∉ span α (s \ {x})) :=
 linear_independent_iff_not_smul_mem_span.trans
 ⟨λ H x xs hx, one_ne_zero (H x xs 1 $ by rw set.image_id; simpa),
  λ H x xs a hx, classical.by_contradiction $ λ a0,
    H x xs (by rw [← set.image_id (s \ {x})]; exact (smul_mem_iff _ a0).1 hx)⟩
 
+lemma linear_independent_iff_not_mem_span : linear_independent α v univ ↔ (∀i, v i ∉ span α (v '' (univ \ {i}))) :=
+begin
+  apply linear_independent_iff_not_smul_mem_span.trans,
+  split,
+  { intros h i h_in_span,
+    apply one_ne_zero (h i (mem_univ _) 1 (by simp [h_in_span])) },
+  { intros h i hi a ha,
+    by_contradiction ha',
+    exact false.elim (h _ ((smul_mem_iff _ ha').1 ha)) }
+end
+
 lemma linear_independent_singleton {x : β} (hx : x ≠ 0) : linear_independent α id ({x} : set β) :=
-linear_independent_iff_not_mem_span.mpr $ by simp [hx] {contextual := tt}
+linear_independent_iff_not_mem_span_old.mpr $ by simp [hx] {contextual := tt}
 
 lemma disjoint_span_singleton {p : submodule α β} {x : β} (x0 : x ≠ 0) :
   disjoint p (span α {x}) ↔ x ∉ p :=

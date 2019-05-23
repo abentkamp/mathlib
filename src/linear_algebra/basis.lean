@@ -92,9 +92,6 @@ theorem linear_independent_univ_iff_inj : linear_independent α v univ ↔
   ∀l, finsupp.total ι β α v l = 0 → l = 0 :=
 by simp [linear_independent_iff]
 
-
-
-
 lemma linear_independent.comp_univ (f : ι' → ι) (hf : injective f)
   (h : linear_independent α v univ) : linear_independent α (v ∘ f) univ :=
 begin
@@ -221,7 +218,7 @@ lemma smul_mem_span {α β : Type*} [ring α] [add_comm_group β] [module α β]
   a • x ∈ span α s :=
 submodule.smul _ _ h --mem_span.2 (λ p hp, smul_mem _ _ (mem_span.1 h _ hp))
 
-
+-- TODO: Strengthen "hd" to what it was before?
 lemma linear_independent_Union_finite {η : Type*} {ιs : η → Type*}
   [decidable_eq η] [∀ j, decidable_eq (ιs j)]
   {f : Π j : η, ιs j → β}
@@ -229,7 +226,8 @@ lemma linear_independent_Union_finite {η : Type*} {ιs : η → Type*}
   (zero_ne_one : (0 : α) ≠ 1)
   --(hd : ∀i, ∀t:set η, finite t → i ∉ t →
   --disjoint (span α (range (f i))) (⨆i∈t, span α (range (f i))))
-  (hd : ∀ (s : set η) (g : s → β), (∀ i : s, g i ∈ span α (range (f i))) → linear_independent α g univ)
+  (hd : ∀ (s : set η) (g : s → β), (finite s) → (∀ i : s, g i ∈ span α (range (f i))) →
+        ∀ l : s →₀ α, finsupp.total s β α g l = 0 → ∀ j : s, l j • g j = 0)
   :
   linear_independent α (λ ji : Σ j, ιs j, f ji.1 ji.2) univ :=
 begin
@@ -272,17 +270,22 @@ begin
     rw ←span_span,
     apply span_mono (h_image_subsums _),
     have := h_subsums_in_span', },-/
-  have h_linindep_subsums : linear_independent α (restrict' subsums ↑(finsupp.split_support l)) univ,
+  /-have h_linindep_subsums : linear_independent α (restrict' subsums ↑(finsupp.split_support l)) univ,
   {
-    apply hd,
+    apply hd _ _ (finset.finite_to_set (finsupp.split_support l)),
     intros i,
     rw restrict_apply,
     apply h_subsums_in_span
-  },
-  let const1 := finsupp.on_finset finset.univ (λ _, (1 : α)) (λ _ _, finset.mem_univ _),
-    -- ↥↑(finsupp.split_support l) →₀ α
-  have h_const_eq_0 : const1 = 0,
-  { apply linear_independent_univ_iff_inj.1 h_linindep_subsums,
+  },-/
+  haveI : has_lift (finset α) (set α) := ⟨finset.to_set⟩,
+  let const1 : (↑(finsupp.split_support l) : set η) →₀ α :=
+    finsupp.on_finset finset.univ (λ _, (1 : α)) (λ _ _, finset.mem_univ _),
+  have h_const_smul_subsums_eq_0 : ∀ j : (finsupp.split_support l).to_set, const1 j • subsums j = 0,
+  { intros j,
+    apply hd,
+    { apply finset.finite_to_set },
+    { intro i,
+      apply h_subsums_in_span },
     simp [finsupp.total_apply],
     unfold finsupp.sum,
     simp [finsupp.on_finset, zero_ne_one.symm, restrict_apply],
@@ -297,6 +300,14 @@ begin
     { intros _ _ _ _ h,
       apply subtype.eq',
       exact h } },
+  have h_const_eq_0 : const1 = 0,
+  {
+    ext j,
+    have := h_const_smul_subsums_eq_0 j,
+    simp [const1, finsupp.to_fun, finsupp.on_finset] at this,
+    exfalso,
+    apply h_subsums_neq_0 j (subtype.mem j) this,
+  },
   have h_split_support : finsupp.split_support l = finset.image (λ (x : (finsupp.split_support l).to_set), ↑x) const1.support,
   { dsimp only [const1, finsupp.on_finset],
     simp [zero_ne_one.symm],
@@ -309,8 +320,7 @@ begin
     simp,
     refl },
   { unfold finsupp.split_support at h_split_support_empty,
-    rwa [finset.image_eq_empty, finsupp.support_eq_empty] at h_split_support_empty },
-  { apply finset_coe.fintype }
+    rwa [finset.image_eq_empty, finsupp.support_eq_empty] at h_split_support_empty }
 end
 
 section repr
@@ -565,6 +575,18 @@ begin
       map_le_iff_le_comap, ← ker_comp, @finsupp.lmap_domain_total _ _ α _ _ _ _ _ _ _ _ _ _ _ _ id id, ker_comp],
   { exact le_trans (le_inf inf_le_left hf_inj) (le_trans hs bot_le) },
   { simp }
+end
+
+lemma linear_independent.image' {f : β →ₗ γ} (hs : linear_independent α v univ)
+  (hf_inj : disjoint (span α (range v)) f.ker) : linear_independent α (f ∘ v) univ :=
+begin
+  rw [disjoint, ← set.image_univ, finsupp.span_eq_map_total, map_inf_eq_map_inf_comap,
+    map_le_iff_le_comap, comap_bot, finsupp.supported_univ, top_inf_eq, linear_independent_univ_iff.1 hs] at hf_inj,
+  haveI : inhabited β := ⟨0⟩,
+  rw [linear_independent_univ_iff, finsupp.total_comp],
+  rw [@finsupp.lmap_domain_total _ _ α _ _ _ _ _ _ _ _ _ _ _ _ _ f, ker_comp, eq_bot_iff],
+  apply hf_inj,
+  exact λ _, rfl,
 end
 
 lemma linear_map.linear_independent_image_iff {s : set β} {f : β →ₗ γ}
@@ -1041,29 +1063,83 @@ variables {η : Type*} {ιs : η → Type*} {φ : η → Type*}
 variables [ring α] [∀i, add_comm_group (φ i)] [∀i, module α (φ i)] [fintype η] [decidable_eq η]
 
 
+#check disjoint
+
+-- TODO: move
+-- TODO: implication in the other direction?
+lemma xxx {ι α β: Type*} [decidable_eq ι] [decidable_eq α] [decidable_eq β] [ring α]
+  [add_comm_group β] [module α β] (i : ι) (g : ι → β) :
+  (∀ i (a : α), a • g i ∈ span α (g '' (univ \ {i})) → a • g i = 0)
+    → ∀ l : ι →₀ α, finsupp.total ι β α g l = 0 → ∀ i, l i • g i = 0 :=
+begin
+  --split,
+  { intros hv l hl i,
+    have h_mem_supported : finsupp.single i (l i) - l ∈ finsupp.supported α α (univ \ {i}),
+    { rw finsupp.mem_supported,
+      intros x hx,
+      rw [finset.mem_coe, finsupp.mem_support_iff] at hx,
+      rw [←compl_eq_univ_diff],
+      apply mem_compl,
+      intros hx',
+      apply hx,
+      rw eq_of_mem_singleton hx',
+      simp },
+    have h₁: finsupp.total ι β α g (finsupp.single i (l i) - l) = l i • g i,
+      by simp [hl],
+    have := hv,
+    simp only [finsupp.mem_span_iff_total] at this,
+    exact this i (l i) ⟨finsupp.single i (l i) - l, h_mem_supported, h₁⟩ }
+end
 
 lemma linear_independent_std_basis [∀ j, decidable_eq (ιs j)]  [∀ i, decidable_eq (φ i)]
-  (s : Πj, ιs j → (φ j)) (hs : ∀i, linear_independent α (s i) univ) :
-  linear_independent α (λ (ji : Σ j, ιs j), std_basis α φ ji.1 (s ji.1 ji.2)) univ :=
+  {zero_ne_one : (0:α) ≠ 1} (v : Πj, ιs j → (φ j)) (hs : ∀i, linear_independent α (v i) univ) :
+  linear_independent α (λ (ji : Σ j, ιs j), std_basis α φ ji.1 (v ji.1 ji.2)) univ :=
 begin
-
-lemma linear_independent_std_basis [∀ i, decidable_eq (φ i)]
-  (s : Πi, set (φ i)) (hs : ∀i, linear_independent α id (s i)) :
-  linear_independent α id (⋃i, std_basis α φ i '' s i) :=
-begin
-  refine linear_independent_Union_finite _ _,
-  { assume i,
-    refine (linear_independent_image_iff _).2 (hs i),
-    simp only [ker_std_basis, disjoint_bot_right] },
-  { assume i J _ hiJ,
-    simp only [set.image_id],
-    simp [(set.Union.equations._eqn_1 _).symm, submodule.span_image, submodule.span_Union],
-    have h₁ : map (std_basis α φ i) (span α (s i)) ≤ (⨆j∈({i} : set η), range (std_basis α φ j)),
-    { exact (le_supr_of_le i $ le_supr_of_le (set.mem_singleton _) $ map_mono $ le_top) },
-    have h₂ : (⨆j∈J, map (std_basis α φ j) (span α (s j))) ≤ (⨆j∈J, range (std_basis α φ j)),
-    { exact supr_le_supr (assume i, supr_le_supr $ assume hi, map_mono $ le_top) },
-    exact disjoint_mono h₁ h₂
-      (disjoint_std_basis_std_basis _ _ _ _ $ set.disjoint_singleton_left.2 hiJ) }
+  have hs' : ∀j : η, linear_independent α (λ i : ιs j, std_basis α φ j (v j i)) univ,
+  { intro j,
+    apply linear_independent.image' (hs j),
+    simp [ker_std_basis] },
+  apply linear_independent_Union_finite hs',
+  apply zero_ne_one,
+  intros s g hs hg,
+  have h_g_mem_range_std_basis: ∀ (j : s) (a : α), a • g j ∈ linear_map.range (std_basis α φ j),
+  { intros j a,
+    rw ← span_eq (range (std_basis α φ j)),
+    apply span_mono _ (submodule.smul _ a (hg j)),
+    rw range_coe,
+    convert image_subset_range _ _,
+    apply set.range_comp },
+  have h_span_le_range : ∀ j, span α (g '' (univ \ {j} : set s)) ≤ ⨆i∈(s \ {j}), linear_map.range (std_basis α φ i),
+  { intro j,
+    rw span_le,
+    rw image_subset_iff,
+    intros i hi,
+    rw set.mem_preimage_eq,
+    apply mem_supr_of_mem _ (i : η),
+    apply mem_supr_of_mem,
+    { simp [mem_diff] at hi,
+      simp [mem_diff],
+      rw ←subtype.coe_ext,
+      exact hi },
+    convert h_g_mem_range_std_basis i 1,
+    simp },
+  have h_eq_0_of_mem_span: ∀ (i : s) (a : α), a • g i ∈ span α (g '' (univ \ {i})) → a • g i = 0,
+  {
+    intros i a h_mem_span,
+    apply disjoint_def.1,
+    apply disjoint_std_basis_std_basis α φ {i} (s \ {i}) disjoint_diff,
+    { apply mem_supr_of_mem,
+      apply mem_supr_of_mem,
+      apply mem_singleton,
+      apply h_g_mem_range_std_basis },
+    { apply (submodule.le_def'.1 (h_span_le_range _)) _ h_mem_span }
+  },
+  intros l hl i,
+  show l i • g i = 0,
+  { haveI := classical.dec_eq α,
+    apply xxx i g,
+    exact h_eq_0_of_mem_span,
+    exact hl }
 end
 
 lemma is_basis_std_basis [fintype ι] [∀ j, decidable_eq (ιs j)] [∀ j, decidable_eq (φ j)]

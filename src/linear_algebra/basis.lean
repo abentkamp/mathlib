@@ -384,10 +384,8 @@ begin
   have := h (finsupp.comap_domain v l (set.inj_on_of_bij_on h_bij)),
   rw finsupp.total_comap_domain at this,
   apply finsupp.eq_zero_of_comap_domain_eq_zero _ _ h_bij,
-  apply this,
-  --rw finset.sum_preimage v l.support (set.inj_on_of_bij_on h_bij) (λ (x : β), l x • x) at this,
-  --have := this hl₂,
-  sorry
+  rw finset.sum_preimage v l.support h_bij (λ (x : β), l x • x) at this,
+  exact this hl₂,
 end
 
 lemma linear_independent.univ_of_id (hv : injective v)

@@ -35,11 +35,41 @@ noncomputable def finset.preimage {α β : Type*} {f : α → β} (s : finset β
 set.finite.to_finset (set.finite_of_finite_image_on hf
     (set.finite_subset s.finite_to_set (set.image_preimage_subset _ _)))
 
--- TODO: not true!
---lemma finset.sum_preimage {α β γ: Type*} [add_comm_monoid γ] (f : α → β) (s : finset β)
---  (hf : set.inj_on f (f ⁻¹' s.to_set)) (g : β → γ) :
---  (finset.preimage s hf).sum (g ∘ f) = s.sum g  :=
---  sorry
+lemma finset.preimage_mem {α β : Type*} [decidable_eq β] (f : α → β) (s : finset β)
+  (hf : set.inj_on f (f ⁻¹' s.to_set)) (x : α) :
+  x ∈ finset.preimage s hf ↔ f x ∈ s :=
+by simp [finset.preimage, finset.to_set]
+
+lemma finset.image_preimage {α β : Type*} [decidable_eq β] (f : α → β) (s : finset β)
+  (hf : set.bij_on f (f ⁻¹' s.to_set) s.to_set) :
+  finset.image f (finset.preimage s (set.inj_on_of_bij_on hf)) = s :=
+begin
+  apply subset.antisymm,
+  { intros b hb,
+    rw mem_image at hb,
+    rcases hb with ⟨a, ha, hab⟩,
+    simp [finset.preimage, finset.to_set] at ha,
+    rwa ←hab, },
+  { intros b hb,
+    rw mem_image,
+    rcases (set.mem_image _ _ _).1 (set.surj_on_of_bij_on hf hb) with ⟨a, ha, hab⟩,
+    refine ⟨a, _, hab⟩,
+    simp [finset.preimage, finset.to_set, hab, hb] }
+end
+
+lemma finset.sum_preimage {α β γ : Type*} [decidable_eq β] [add_comm_monoid γ] (f : α → β) (s : finset β)
+  (hf : set.bij_on f (f ⁻¹' s.to_set) s.to_set) (g : β → γ) :
+  (finset.preimage s (set.inj_on_of_bij_on hf)).sum (g ∘ f) = s.sum g  :=
+calc
+  (finset.preimage s (set.inj_on_of_bij_on hf)).sum (g ∘ f)
+      = (finset.image f (finset.preimage s (set.inj_on_of_bij_on hf))).sum g :
+          begin
+            rw sum_image,
+            intros x hx y hy hxy,
+            apply set.inj_on_of_bij_on hf,
+            repeat { simp [finset.preimage, finset.to_set] at *, assumption }
+          end
+  ... = s.sum g : by rw finset.image_preimage
 
 /-- `finsupp α β`, denoted `α →₀ β`, is the type of functions `f : α → β` such that
   `f x = 0` for all but finitely many `x`. -/
@@ -756,15 +786,16 @@ begin
   simp,
   refl
 end
-/- TODO: NOT TRUE
+
 lemma sum_comap_domain {α₁ α₂ β γ : Type*} [has_zero β] [add_comm_monoid γ]
-  (f : α₁ → α₂) (l : α₂ →₀ β) (g : α₂ → β → γ) (hf : set.inj_on f (f ⁻¹' l.support.to_set)):
-  (comap_domain f l hf).sum (g ∘ f) = l.sum g :=
+  (f : α₁ → α₂) (l : α₂ →₀ β) (g : α₂ → β → γ) (hf : set.bij_on f (f ⁻¹' l.support.to_set) l.support.to_set):
+  (comap_domain f l (set.inj_on_of_bij_on hf)).sum (g ∘ f) = l.sum g :=
 begin
   unfold sum,
+  haveI := classical.dec_eq α₂,
   simp only [comap_domain, comap_domain_apply, finset.sum_preimage f _ _ (λ (x : α₂), g x (l x))]
 end
--/
+
 lemma eq_zero_of_comap_domain_eq_zero {α₁ α₂ γ : Type*}
   [add_comm_monoid γ] [decidable_eq α₁] [decidable_eq α₂] [decidable_eq γ]
   (f : α₁ → α₂) (l : α₂ →₀ γ) (hf : set.bij_on f (f ⁻¹' l.support.to_set) l.support.to_set)

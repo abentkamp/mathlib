@@ -614,6 +614,14 @@ variables {s t : set β} (hv : is_basis α v)
 
 lemma is_basis.mem_span (hv : is_basis α v) : ∀ x, x ∈ span α (range v) := eq_top_iff'.1 hv.2
 
+lemma is_basis.comp (hv : is_basis α v) (f : ι' → ι) (hf : bijective f) :
+  is_basis α (v ∘ f) :=
+begin
+  split,
+  { apply linear_independent.comp_univ f hf.1 hv.1 },
+  { rw[set.range_comp, range_iff_surjective.2 hf.2, image_univ, hv.2] }
+end
+
 def is_basis.repr : β →ₗ (ι →₀ α) :=
 (hv.1.repr).comp (linear_map.id.cod_restrict _ (by rw [image_univ]; exact hv.mem_span))
 
@@ -1142,26 +1150,56 @@ begin
     exact hl }
 end
 
-lemma is_basis_std_basis [fintype ι] [∀ j, decidable_eq (ιs j)] [∀ j, decidable_eq (φ j)]
-  (s : Πj, ιs j → (φ j)) (hs : ∀j, is_basis α (s j)) :
+lemma is_basis_std_basis [∀ j, decidable_eq (ιs j)] [∀ j, decidable_eq (φ j)]
+  {zero_ne_one : (0:α) ≠ 1} (s : Πj, ιs j → (φ j)) (hs : ∀j, is_basis α (s j)) :
   is_basis α (λ (ji : Σ j, ιs j), std_basis α φ ji.1 (s ji.1 ji.2)) :=
 begin
   split,
-  apply linear_independent.univ_of_id,
-  { sorry },
-  --{ apply linear_independent_std_basis },
+  { apply linear_independent_std_basis _ (assume i, (hs i).1),
+    apply zero_ne_one },
+    --rw ←image_univ,
+
+  have h₁ : Union (λ j, set.range (std_basis α φ j ∘ s j))
+    ⊆ range (λ (ji : Σ (j : η), ιs j), (std_basis α φ (ji.fst)) (s (ji.fst) (ji.snd))),
+  { intros x hx,
+    rw mem_Union at hx,
+    rcases hx with ⟨j, hj⟩,
+    rw set.mem_range at *,
+    rcases hj with ⟨i, hi⟩,
+    exact ⟨⟨j, i⟩, hi⟩ },
+  have h₂ : ∀ i, span α (range (std_basis α φ i ∘ s i)) = range (std_basis α φ i),
+  { intro i,
+    rw [set.range_comp, submodule.span_image, (assume i, (hs i).2), submodule.map_top] },
+  apply eq_top_mono,
+  apply span_mono h₁,
+  rw span_Union,
+  simp only [h₂],
+  apply supr_range_std_basis
 end
- -- is_basis α (λ (ji : Σ j, ιs j), (std_basis α φ ji.1).to_fun  (s ji.1 ji.2)) :=
---begin
---  refine ⟨linear_independent_std_basis _ (assume i, (hs i).1), _⟩,
---  simp only [submodule.span_Union, submodule.span_image, (assume i, (hs i).2), submodule.map_top,
---    supr_range_std_basis]
---end
 
 section
 variables (α ι)
-lemma is_basis_fun [fintype ι] : is_basis α (⋃i, std_basis α (λi:ι, α) i '' {1}) :=
-is_basis_std_basis _ (assume i, is_basis_singleton_one _)
+
+lemma is_basis_fun₀ {zero_ne_one : (0:α) ≠ 1} : is_basis α
+    (λ (ji : Σ (j : η), (λ _, unit) j),
+       (std_basis α (λ (i : η), α) (ji.fst)) 1) :=
+begin
+  haveI := classical.dec_eq,
+  apply @is_basis_std_basis α _ η (λi:η, unit) (λi:η, α) _ _ _ _ _ _ _ zero_ne_one (λ _ _, (1 : α))
+      (assume i, @is_basis_singleton_one _ α _ _ _ _ _ _ _ _),
+end
+
+lemma is_basis_fun {zero_ne_one : (0:α) ≠ 1} : is_basis α (λ i, std_basis α (λi:η, α) i 1) :=
+begin
+  apply is_basis.comp (is_basis_fun₀ α) (λ i, ⟨i, punit.star⟩),
+  { apply bijective_iff_has_inverse.2,
+    use (λ x, x.1),
+    simp [function.left_inverse, function.right_inverse],
+    intros _ b,
+    rw [unique.eq_default b, unique.eq_default punit.star] },
+  apply zero_ne_one,
+end
+
 end
 
 end module

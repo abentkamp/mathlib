@@ -84,6 +84,14 @@ lemma zero_not_mem_of_linear_independent
   {refl}, {simp [hi]}
 end
 
+lemma ne_zero_of_linear_independent
+  {i : ι} (ne : 0 ≠ (1:α)) (hs : linear_independent α v univ) : v i ≠ 0 :=
+λ h, ne $ eq.symm begin
+  suffices : (finsupp.single i 1 : ι →₀ α) i = 0, {simpa},
+  rw disjoint_def.1 hs _ (finsupp.single_mem_supported _ 1 (mem_univ _)),
+  {refl}, {simp [h]}
+end
+
 lemma linear_independent_univ_iff :
   linear_independent α v univ ↔ (finsupp.total ι β α v).ker = ⊥ :=
 by simp [linear_independent, disjoint_iff]
@@ -218,12 +226,22 @@ lemma smul_mem_span {α β : Type*} [ring α] [add_comm_group β] [module α β]
   a • x ∈ span α s :=
 submodule.smul _ _ h --mem_span.2 (λ p hp, smul_mem _ _ (mem_span.1 h _ hp))
 
+lemma finsupp.eq_zero_of_zero_eq_one {ι α : Type*} [ring α] (zero_eq_one : (0 : α) = 1) (l : ι →₀ α) : l = 0 :=
+  by ext i; simp [eq_zero_of_zero_eq_one α zero_eq_one (l i)]
+
+lemma linear_independent_of_zero_eq_one (zero_eq_one : (0 : α) = 1) : linear_independent α v s :=
+begin
+  rw linear_independent_iff,
+  intros,
+  apply finsupp.eq_zero_of_zero_eq_one zero_eq_one,
+end
+
 -- TODO: Strengthen "hd" to what it was before?
 lemma linear_independent_Union_finite {η : Type*} {ιs : η → Type*}
   [decidable_eq η] [∀ j, decidable_eq (ιs j)]
   {f : Π j : η, ιs j → β}
   (hindep : ∀j, linear_independent α (f j) univ)
-  (zero_ne_one : (0 : α) ≠ 1)
+  --(zero_ne_one : (0 : α) ≠ 1)
   --(hd : ∀i, ∀t:set η, finite t → i ∉ t →
   --disjoint (span α (range (f i))) (⨆i∈t, span α (range (f i))))
   (hd : ∀ (s : set η) (g : s → β), (finite s) → (∀ i : s, g i ∈ span α (range (f i))) →
@@ -231,6 +249,10 @@ lemma linear_independent_Union_finite {η : Type*} {ιs : η → Type*}
   :
   linear_independent α (λ ji : Σ j, ιs j, f ji.1 ji.2) univ :=
 begin
+  by_cases zero_eq_one : (0 : α) = 1,
+  { apply linear_independent_of_zero_eq_one zero_eq_one },
+  have zero_ne_one: (0 : α) ≠ 1,
+    from zero_eq_one,
   simp only [linear_independent_univ_iff_inj, finsupp.total_apply, finsupp.lsum_apply, finsupp.sigma_sum],
   intros l hl,
   let subsums := λ i, finsupp.sum (finsupp.split l i) (λ (a : ιs i) (b : α), b • f i a),
@@ -288,7 +310,7 @@ begin
       apply h_subsums_in_span },
     simp [finsupp.total_apply],
     unfold finsupp.sum,
-    simp [finsupp.on_finset, zero_ne_one.symm, restrict_apply],
+    simp [finsupp.on_finset, restrict_apply],
     rw ←hl,
     convert (finset.sum_image _).symm,
     { dsimp only [const1, finsupp.on_finset],
@@ -355,9 +377,29 @@ begin
     exact λ h, false.elim (zero_ne_one.symm h.1) }
 end
 
+
+lemma linear_independent.injective' (zero_ne_one : (0 : α) ≠ 1)
+  (hv : linear_independent α v univ) : injective v :=
+begin
+  intros x y hxy,
+  apply linear_independent.injective zero_ne_one hv,
+  simp,
+  simp,
+  assumption
+end
+
+
+/-
 lemma linear_independent.id_of_univ (zero_ne_one : (0 : α) ≠ 1)
+  (h : linear_independent α v univ) : linear_independent α (subtype.val : range v → β) univ :=
+  sorry
+-/
+
+lemma linear_independent.id_of_univ
   (h : linear_independent α v univ) : linear_independent α id (range v) :=
 begin
+  by_cases zero_eq_one : (0 : α) = 1,
+  { apply linear_independent_of_zero_eq_one zero_eq_one },
   rw linear_independent_iff,
   intros l hl₁ hl₂,
   have h_bij : bij_on v (v ⁻¹' finset.to_set (l.support)) (finset.to_set (l.support)),
@@ -367,7 +409,7 @@ begin
       apply image_preimage_subset },
     { unfold inj_on,
       intros i₁ i₂ hi₁ hi₂ hi,
-      apply linear_independent.injective zero_ne_one h _ _ (mem_univ _) (mem_univ _) hi,
+      apply linear_independent.injective zero_eq_one h _ _ (mem_univ _) (mem_univ _) hi,
      },
     { intros x hx,
       apply exists.elim (mem_range.1 ((finsupp.mem_supported α l).2 hl₁ hx)),
@@ -404,6 +446,10 @@ begin
     rw left_id,
     exact hl₂ }
 end
+
+lemma linear_independent.univ_of_id' (s : set β)
+  (h : linear_independent α id s) : linear_independent α (subtype.val : s → β) univ :=
+linear_independent.univ_of_id subtype.val_injective (by rwa [subtype.val_range, set.set_of_mem_eq])
 
 def linear_independent.total_equiv : finsupp.supported α α s ≃ₗ span α (v '' s) :=
 linear_equiv.of_bijective (finsupp.total_on ι β α v s)
@@ -600,7 +646,104 @@ linear_independent_union (hs.image $ by simp) (ht.image $ by simp) $
 by rw [set.image_id, span_image, set.image_id, span_image];
     simp [disjoint_iff, prod_inf_prod]
 
+--TODO : move
+def sum.elim {α β γ : Type*} (f : α → γ) (g : β → γ) : α ⊕ β → γ := λ x, sum.rec_on x f g
 
+--TODO : move
+@[simp] lemma sum.elim_inl {α β γ : Type*} (f : α → γ) (g : β → γ) (x : α) :
+  sum.elim f g (sum.inl x) = f x :=
+by refl
+
+--TODO : move
+@[simp] lemma sum.elim_inr {α β γ : Type*} (f : α → γ) (g : β → γ) (x : β) :
+  sum.elim f g (sum.inr x) = g x :=
+by refl
+
+--TODO : move
+lemma sum.elim_injective {α β γ : Type*} (f : α → γ) (g : β → γ) (hf : injective f) (hg : injective g)
+ (hfg : ∀ a b, f a ≠ g b) : injective (sum.elim f g) :=
+λ x y, sum.rec_on x
+  (sum.rec_on y (λ x y hxy, by rw hf hxy) (λ x y hxy, false.elim $ hfg _ _ hxy))
+  (sum.rec_on y (λ x y hxy, false.elim $ hfg x y hxy.symm) (λ x y hxy, by rw hg hxy))
+
+--TODO : move
+lemma sum.elim_range {α β γ : Type*} (f : α → γ) (g : β → γ) :
+  range (sum.elim f g) = range f ∪ range g :=
+begin
+  apply subset.antisymm,
+  { intros x hx,
+    rcases set.mem_range.1 hx with ⟨a, ha⟩,
+    cases a,
+    { apply mem_union_left,
+      convert mem_range_self _,
+      exact ha.symm },
+    { apply mem_union_right,
+      convert mem_range_self _,
+      exact ha.symm } },
+  { intros x hx,
+    cases hx,
+    { rcases set.mem_range.1 hx with ⟨a, ha⟩,
+      use a,
+      simpa },
+    { rcases set.mem_range.1 hx with ⟨a, ha⟩,
+      apply set.mem_range.2,
+      existsi (sum.inr a),
+      simpa }}
+end
+
+--TODO : move
+lemma disjoint_inl_inr : disjoint (inl α β γ).range (inr α β γ).range :=
+begin
+  rw disjoint_def,
+  intros x hx₁ hx₂,
+  rcases linear_map.mem_range.1 hx₁ with ⟨b, hb⟩,
+  rcases linear_map.mem_range.1 hx₂ with ⟨c, hc⟩,
+  have := hc.trans hb.symm,
+  simp at this,
+  rw this.1.symm at hb,
+  simp [hb.symm],
+  refl
+end
+
+--TODO : move
+lemma linear_map.map_le_range {f : β →ₗ[α] γ} {p : submodule α β} : map f p ≤ range f :=
+calc
+  map f p ≤ map f ⊤ : map_mono le_top
+  ... = range f : map_top _
+
+-- TODO use sum.map
+
+lemma linear_independent_inl_union_inr' {v : ι → β} {v' : ι' → γ}
+  (hv : linear_independent α v univ) (hv' : linear_independent α v' univ) :
+  linear_independent α (sum.elim (inl α β γ ∘ v) (inr α β γ ∘ v')) univ :=
+begin
+  by_cases zero_eq_one : (0 : α) = 1,
+  { apply linear_independent_of_zero_eq_one zero_eq_one },
+  have inj_v : injective v := (linear_independent.injective' zero_eq_one hv),
+  have inj_v' : injective v' := (linear_independent.injective' zero_eq_one hv'),
+  apply linear_independent.univ_of_id,
+  { apply sum.elim_injective _ _,
+    { exact injective_comp prod.injective_inl inj_v },
+    { exact injective_comp prod.injective_inr inj_v' },
+    { intros, simp [ne_zero_of_linear_independent zero_eq_one hv] } },
+  { rw sum.elim_range,
+    apply linear_independent_union,
+    { apply linear_independent.id_of_univ,
+      apply linear_independent.image' hv,
+      simp [ker_inl] },
+    { apply linear_independent.id_of_univ,
+      apply linear_independent.image' hv',
+      simp [ker_inr] },
+    {
+      apply disjoint_mono _ _ disjoint_inl_inr,
+      { rw [image_id, set.range_comp, span_image],
+        apply linear_map.map_le_range },
+      { rw [image_id, set.range_comp, span_image],
+        apply linear_map.map_le_range },
+      apply classical.dec_eq α, -- TODO: Why?
+      apply classical.dec_eq β,
+      apply classical.dec_eq γ, } }
+end
 
 variables (α) (v)
 /-- A set of vectors is a basis if it is linearly independent and all vectors are in the span α -/
@@ -619,6 +762,9 @@ begin
   { apply linear_independent.comp_univ f hf.1 hv.1 },
   { rw[set.range_comp, range_iff_surjective.2 hf.2, image_univ, hv.2] }
 end
+
+lemma is_basis.injective (hv : is_basis α v) (zero_ne_one : (0 : α) ≠ 1) : injective v :=
+  λ x y h, linear_independent.injective zero_ne_one hv.1 x y (mem_univ x) (mem_univ y) h
 
 def is_basis.repr : β →ₗ (ι →₀ α) :=
 (hv.1.repr).comp (linear_map.id.cod_restrict _ (by rw [image_univ]; exact hv.mem_span))
@@ -730,12 +876,35 @@ def equiv_of_is_basis {v : ι → β} {v' : ι' → γ} {f : β → γ} {g : γ 
     λ y, congr_arg (λ h:γ →ₗ[α] γ, h y) this,
   ..hv.constr (f ∘ v) }
 
-/- TODO
+lemma linear_map.sup_range_inl_inr :
+  (inl α β γ).range ⊔ (inr α β γ).range = ⊤ :=
+begin
+  rw eq_top_iff',
+  intro x,
+  rw mem_sup,
+  cases x,
+  have h₁ : prod.mk x_fst (0 : γ) ∈ (inl α β γ).range,
+    by simp,
+  have h₂ : prod.mk (0 : β) x_snd ∈ (inr α β γ).range,
+    by simp,
+  use ⟨x_fst, 0⟩,
+  use h₁,
+  use ⟨0, x_snd⟩,
+  use h₂,
+  simp
+end
+
 lemma is_basis_inl_union_inr {v : ι → β} {v' : ι' → γ}
-  (hv : is_basis α v) (hv' : is_basis α v') : is_basis α (sum.map v v') :=
-⟨linear_independent_inl_union_inr hs.1 ht.1,
-  by rw [span_union, span_image, span_image]; simp [hs.2, ht.2]⟩
--/
+  (hv : is_basis α v) (hv' : is_basis α v') : is_basis α (sum.elim (inl α β γ ∘ v) (inr α β γ ∘ v')) :=
+begin
+  split,
+  apply linear_independent_inl_union_inr' hv.1 hv'.1,
+  rw [sum.elim_range, span_union,
+      set.range_comp, span_image (inl α β γ), hv.2,  map_top,
+      set.range_comp, span_image (inr α β γ), hv'.2, map_top],
+  exact linear_map.sup_range_inl_inr
+end
+
 
 end is_basis
 
@@ -743,7 +912,7 @@ end is_basis
 lemma finsupp.unique_single [unique ι] (x : ι →₀ α) : x = finsupp.single (default ι) (x (default ι)) :=
 by ext i; simp [unique.eq_default i]
 
-lemma is_basis_singleton_one (α : Type*) [unique ι] [decidable_eq α] [ring α] [module α β] :
+lemma is_basis_singleton_one (α : Type*) [unique ι] [decidable_eq α] [ring α] :
   is_basis α (λ (_ : ι), (1 : α)) :=
 begin
   split,
@@ -758,12 +927,23 @@ begin
     simp [submodule.mem_span_singleton] }
 end
 
-/- TODO: needed nowhere, but may be useful
 lemma linear_equiv.is_basis (hs : is_basis α v)
   (f : β ≃ₗ[α] γ) : is_basis α (f ∘ v) :=
---show is_basis α ((f : β →ₗ[α] γ) ∘ v), from
-⟨hs.1.image $ by simp, sorry ⟩ --by rw [span_image, hs.2, map_top, f.range]⟩
--/
+begin
+  split,
+  { apply hs.1.image',
+    have := linear_equiv.ker f,
+    unfold_coes at this,
+    unfold has_coe_t_aux.coe,
+    unfold coe_b,
+    unfold has_coe.coe,
+    simp [this] }, -- TODO: how to get rid of these?
+  { rw set.range_comp,
+    have : span α ((f : β →ₗ[α] γ) '' range v) = ⊤,
+    { rw [span_image (f : β →ₗ[α] γ), hs.2],
+      simp },
+    exact this }
+end
 
 -- TODO: move up
 lemma linear_independent_span (hs : linear_independent α v univ) :
@@ -809,10 +989,17 @@ split,
   exact hl }
 end
 
-lemma is_basis_empty (h : ∀x:β, x = 0) : is_basis α (λ x : empty, (0 : β)) :=
-⟨ linear_independent_empty_type nonempty_empty,
+lemma is_basis_empty (h_empty : ¬ nonempty ι) (h : ∀x:β, x = 0) : is_basis α (λ x : ι, (0 : β)) :=
+⟨ linear_independent_empty_type h_empty,
   eq_top_iff'.2 $ assume x, (h x).symm ▸ submodule.zero_mem _ ⟩
 
+lemma is_basis_empty_bot (h_empty : ¬ nonempty ι) : is_basis α (λ _ : ι, (0 : (⊥ : submodule α β))) :=
+begin
+  apply is_basis_empty h_empty,
+  intro x,
+  apply subtype.ext.2,
+  exact (submodule.mem_bot α).1 (subtype.mem x),
+end
 
 --lemma is_basis_empty_bot : is_basis α ({x | false } : set (⊥ : submodule α β)) :=
 --is_basis_empty $ assume ⟨x, hx⟩,
@@ -881,6 +1068,12 @@ begin
   rwa [set.image_id, set.image_id, disjoint_span_singleton x0],
   exact classical.dec_eq α
 end
+
+/- This doesn't really work:
+lemma exists_linear_independent (hs : linear_independent α v univ) (hst : range v ⊆ t) :
+  ∃ ι' [decidable_eq ι'] (v' : ι' → β), range v ⊆ t ∧ range v ⊆ range v' ∧ t ⊆ span α (range v)
+  ∧ linear_independent α v' univ :=
+-/
 
 lemma exists_linear_independent (hs : linear_independent α id s) (hst : s ⊆ t) :
   ∃b⊆t, s ⊆ b ∧ t ⊆ span α b ∧ linear_independent α id b :=
@@ -976,11 +1169,11 @@ let ⟨u, hust, hsu, eq⟩ := exists_of_linear_independent_of_finite_span hs thi
 have finite s, from finite_subset u.finite_to_set hsu,
 ⟨this, by rw [←eq]; exact (finset.card_le_of_subset $ finset.coe_subset.mp $ by simp [hsu])⟩
 
-lemma exists_left_inverse_linear_map_of_injective {f : β →ₗ[α] γ} (zero_ne_one : (0 : α) ≠ 1)
+lemma exists_left_inverse_linear_map_of_injective {f : β →ₗ[α] γ}
   (hf_inj : f.ker = ⊥) : ∃g:γ →ₗ β, g.comp f = linear_map.id :=
 begin
   rcases exists_is_basis α β with ⟨B, hB⟩,
-  have hB₀ : _ := linear_independent.id_of_univ zero_ne_one hB.1,
+  have hB₀ : _ := linear_independent.id_of_univ hB.1,
   have : linear_independent α id (f '' B),
   { have := hB₀.image (show disjoint (span α (range (λ i : B, i.val))) (linear_map.ker f), by simp [hf_inj]),
     simp at this,
@@ -1098,7 +1291,7 @@ begin
 end
 
 lemma linear_independent_std_basis [∀ j, decidable_eq (ιs j)]  [∀ i, decidable_eq (φ i)]
-  {zero_ne_one : (0:α) ≠ 1} (v : Πj, ιs j → (φ j)) (hs : ∀i, linear_independent α (v i) univ) :
+  (v : Πj, ιs j → (φ j)) (hs : ∀i, linear_independent α (v i) univ) :
   linear_independent α (λ (ji : Σ j, ιs j), std_basis α φ ji.1 (v ji.1 ji.2)) univ :=
 begin
   have hs' : ∀j : η, linear_independent α (λ i : ιs j, std_basis α φ j (v j i)) univ,
@@ -1106,7 +1299,6 @@ begin
     apply linear_independent.image' (hs j),
     simp [ker_std_basis] },
   apply linear_independent_Union_finite hs',
-  apply zero_ne_one,
   intros s g hs hg,
   have h_g_mem_range_std_basis: ∀ (j : s) (a : α), a • g j ∈ linear_map.range (std_basis α φ j),
   { intros j a,
@@ -1149,12 +1341,11 @@ begin
 end
 
 lemma is_basis_std_basis [∀ j, decidable_eq (ιs j)] [∀ j, decidable_eq (φ j)]
-  {zero_ne_one : (0:α) ≠ 1} (s : Πj, ιs j → (φ j)) (hs : ∀j, is_basis α (s j)) :
+  (s : Πj, ιs j → (φ j)) (hs : ∀j, is_basis α (s j)) :
   is_basis α (λ (ji : Σ j, ιs j), std_basis α φ ji.1 (s ji.1 ji.2)) :=
 begin
   split,
-  { apply linear_independent_std_basis _ (assume i, (hs i).1),
-    apply zero_ne_one },
+  { apply linear_independent_std_basis _ (assume i, (hs i).1) },
     --rw ←image_univ,
 
   have h₁ : Union (λ j, set.range (std_basis α φ j ∘ s j))
@@ -1178,16 +1369,16 @@ end
 section
 variables (α ι)
 
-lemma is_basis_fun₀ {zero_ne_one : (0:α) ≠ 1} : is_basis α
+lemma is_basis_fun₀ : is_basis α
     (λ (ji : Σ (j : η), (λ _, unit) j),
        (std_basis α (λ (i : η), α) (ji.fst)) 1) :=
 begin
   haveI := classical.dec_eq,
-  apply @is_basis_std_basis α _ η (λi:η, unit) (λi:η, α) _ _ _ _ _ _ _ zero_ne_one (λ _ _, (1 : α))
-      (assume i, @is_basis_singleton_one _ α _ _ _ _ _ _ _ _),
+  apply @is_basis_std_basis α _ η (λi:η, unit) (λi:η, α) _ _ _ _ _ _ _ (λ _ _, (1 : α))
+      (assume i, @is_basis_singleton_one _ _ _ _ _ _),
 end
 
-lemma is_basis_fun {zero_ne_one : (0:α) ≠ 1} : is_basis α (λ i, std_basis α (λi:η, α) i 1) :=
+lemma is_basis_fun : is_basis α (λ i, std_basis α (λi:η, α) i 1) :=
 begin
   apply is_basis.comp (is_basis_fun₀ α) (λ i, ⟨i, punit.star⟩),
   { apply bijective_iff_has_inverse.2,
@@ -1195,7 +1386,6 @@ begin
     simp [function.left_inverse, function.right_inverse],
     intros _ b,
     rw [unique.eq_default b, unique.eq_default punit.star] },
-  apply zero_ne_one,
 end
 
 end

@@ -27,8 +27,6 @@ variables {α : Type*} {β : Type*} {γ : Type*} {δ : Type*} {ι : Type*}
 
 reserve infix ` →₀ `:25
 
-#check set.image_preimage_subset
-
 -- TODO: move? But depends on set... (Alex)
 noncomputable def finset.preimage {α β : Type*} {f : α → β} (s : finset β)
   (hf : set.inj_on f (f ⁻¹' s.to_set)) : finset α :=

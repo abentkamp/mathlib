@@ -56,11 +56,11 @@ end
 
 set_option class.instance_max_depth 50
 
-theorem is_basis.le_span [decidable_eq β] {v : ι → β} {J : set β} (hv : is_basis α v)
+theorem is_basis.le_span (zero_ne_one : (0 : α) ≠ 1) [decidable_eq β] {v : ι → β} {J : set β} (hv : is_basis α v)
    (hJ : span α J = ⊤) : cardinal.mk (range v) ≤ cardinal.mk J :=
 begin
   cases le_or_lt cardinal.omega (cardinal.mk J) with oJ oJ,
-  { have := cardinal.mk_range_eq_of_inj  (linear_independent.injective' sorry hv.1),
+  { have := cardinal.mk_range_eq_of_inj  (linear_independent.injective' zero_ne_one hv.1),
     let S : J → set ι := λ j, (is_basis.repr hv j).support.to_set,
     let S' : J → set β := λ j, v '' S j,
     have hs : range v ⊆ ⋃ j, S' j,
@@ -138,12 +138,12 @@ begin
   rw ←cardinal.lift_inj.{(max w w') v},
   rw [cardinal.lift_lift, cardinal.lift_lift],
   apply le_antisymm,
-  { convert cardinal.lift_le.{v (max w w')}.2 (hv.le_span hv'.2),
+  { convert cardinal.lift_le.{v (max w w')}.2 (hv.le_span zero_ne_one hv'.2),
     { rw cardinal.lift_max.{w v w'},
       apply (cardinal.mk_range_eq_of_inj (hv.injective zero_ne_one)).symm, },
     { rw cardinal.lift_max.{w' v w},
       apply (cardinal.mk_range_eq_of_inj (hv'.injective zero_ne_one)).symm, }, },
-  { convert cardinal.lift_le.{v (max w w')}.2 (hv'.le_span hv.2),
+  { convert cardinal.lift_le.{v (max w w')}.2 (hv'.le_span zero_ne_one hv.2),
     { rw cardinal.lift_max.{w' v w},
       apply (cardinal.mk_range_eq_of_inj (hv'.injective zero_ne_one)).symm, },
     { rw cardinal.lift_max.{w v w'},

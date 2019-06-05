@@ -151,18 +151,13 @@ begin
     { exfalso, apply ne.symm h₁ (by assumption) } }
 end
 
-set_option pp.universes true
-
-#check is_basis.to_dual_equiv
-
 theorem dual_dim_eq [fintype ι] :
   cardinal.lift.{v u} (dim K V) = dim K (dual K V) :=
 begin
-
-have :=  linear_equiv.dim_eq_lift  h.to_dual_equiv,
-simp only [cardinal.lift_umax] at this,
-  rw this,
-  apply cardinal.lift_id
+  have :=  linear_equiv.dim_eq_lift  h.to_dual_equiv,
+  simp only [cardinal.lift_umax] at this,
+  rw [this, ← cardinal.lift_umax],
+  apply cardinal.lift_id,
 end
 
 end is_basis
@@ -185,14 +180,14 @@ begin
   by_contradiction H,
   rcases exists_subset_is_basis (linear_independent_singleton H) with ⟨b, hv, hb⟩,
   swap 4, assumption,
-  have hv' : v ∈ b := hv (set.mem_singleton v),
+  have hv' : v = (λ (i : b), i.val) ⟨v, hv (set.mem_singleton v)⟩ := rfl,
   let hx := h (hb.to_dual v),
-  erw [eval_apply, to_dual_apply _ _ hv' _ hv', if_pos rfl, zero_apply _] at hx,
+  erw [eval_apply, hv', to_dual_apply, if_pos rfl, zero_apply _] at hx,
   exact one_ne_zero hx
 end
 
 theorem dual_dim_eq [decidable_eq V] [decidable_eq (dual K V)] (h : dim K V < omega) :
-  cardinal.lift.{v (max u v)} (dim K V) = dim K (dual K V) :=
+  cardinal.lift.{v u} (dim K V) = dim K (dual K V) :=
 begin
   rcases exists_is_basis_fintype h with ⟨b, hb, ⟨hf⟩⟩,
   resetI,

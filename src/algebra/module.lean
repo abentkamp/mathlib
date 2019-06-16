@@ -40,6 +40,9 @@ lemma smul_smul : r • s • x = (r * s) • x := (mul_smul _ _ _).symm
 instance smul.is_add_monoid_hom {r : α} : is_add_monoid_hom (λ x : β, r • x) :=
 { map_add := smul_add _, map_zero := smul_zero _ }
 
+lemma semimodule.eq_zero_of_zero_eq_one (zero_eq_one : (0 : α) = 1) : x = 0 :=
+by rw [←one_smul α x, ←zero_eq_one, zero_smul]
+
 end semimodule
 
 /-- A module is a generalization of vector spaces to a scalar ring.

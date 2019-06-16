@@ -259,6 +259,9 @@ instance : has_top (submodule α β) :=
 
 @[simp] lemma mem_top : x ∈ (⊤ : submodule α β) := trivial
 
+lemma eq_bot_of_zero_eq_one (zero_eq_one : (0 : α) = 1) : p = ⊥ :=
+by ext x; simp [semimodule.eq_zero_of_zero_eq_one _ x zero_eq_one]
+
 instance : order_top (submodule α β) :=
 { top := ⊤,
   le_top := λ p x _, trivial,

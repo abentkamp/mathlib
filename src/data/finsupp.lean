@@ -322,6 +322,29 @@ begin
   { rw [map_range_apply, emb_domain_notin_range, emb_domain_notin_range, ← hg]; assumption }
 end
 
+lemma single_of_emb_domain_single
+  [decidable_eq α₁] [decidable_eq α₂] [decidable_eq β]
+  (l : α₁ →₀ β) (f : α₁ ↪ α₂) (a : α₂) (b : β) (hb : b ≠ 0)
+  (h : l.emb_domain f = finsupp.single a b) :
+  ∃ x, l = finsupp.single x b ∧ f x = a :=
+begin
+  have h_map_support : finset.map f (l.support) = finset.singleton a,
+    by rw [←finsupp.support_emb_domain, h, finsupp.support_single_ne_zero hb]; refl,
+  have ha : a ∈ finset.map f (l.support),
+    by simp [h_map_support],
+  rcases finset.mem_map.1 ha with ⟨c, hc₁, hc₂⟩,
+  use c,
+  split,
+  { ext d,
+    rw [← finsupp.emb_domain_apply f l, h],
+    by_cases h_cases : c = d,
+    { simp [h_cases.symm, hc₂] },
+    { rw [finsupp.single_apply, finsupp.single_apply, if_neg, if_neg h_cases],
+      by_contra hfd,
+      exact h_cases (f.inj (hc₂.trans hfd)) } },
+  { exact hc₂ }
+end
+
 end emb_domain
 
 section zip_with
@@ -1349,6 +1372,10 @@ by simp only [finsupp.sum, finset.sum_mul]
 lemma mul_sum (b : γ) (s : α →₀ β) {f : α → β → γ} :
   b * (s.sum f) = s.sum (λ a c, b * (f a (s a))) :=
 by simp only [finsupp.sum, finset.mul_sum]
+
+protected lemma eq_zero_of_zero_eq_one
+  (zero_eq_one : (0 : β) = 1) (l : α →₀ β) : l = 0 :=
+  by ext i; simp [eq_zero_of_zero_eq_one β zero_eq_one (l i)]
 
 end
 

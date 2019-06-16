@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2017 Johannes Hölzl. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Johannes Hölzl, Mario Carneiro
+Authors: Johannes Hölzl, Mario Carneiro, Alexander Bentkamp
 
 Linear independence and basis sets in a module or vector space.
 
@@ -26,37 +26,9 @@ noncomputable theory
 
 open function lattice set submodule
 
-
-
-
---TODO: move
--- TODO remove b ≠ 0 condition
-lemma single_of_emb_domain_single {α₁ α₂ β : Type*}
-[has_zero β] [decidable_eq α₁] [decidable_eq α₂] [decidable_eq β]
- (l : α₁ →₀ β) (f : α₁ ↪ α₂) (a : α₂) (b : β) (hb : b ≠ 0)
-  (h : l.emb_domain f = finsupp.single a b) :
-  ∃ x, l = finsupp.single x b ∧ f x = a :=
-begin
-  have h_map_support : finset.map f (l.support) = {a},
-    by rw [←finsupp.support_emb_domain, h, finsupp.support_single_ne_zero hb],
-  have ha : a ∈ finset.map f (l.support),
-    by simp [h_map_support],
-  rcases finset.mem_map.1 ha with ⟨c, hc₁, hc₂⟩,
-  use c,
-  split,
-  { ext d,
-    rw [← finsupp.emb_domain_apply f l, h],
-    by_cases h_cases : c = d,
-    { simp [h_cases.symm, hc₂] },
-    { rw [finsupp.single_apply, finsupp.single_apply, if_neg, if_neg h_cases],
-      by_contra hfd,
-      exact h_cases (f.inj (hc₂.trans hfd)) } },
-  { exact hc₂ }
-end
-
-variables {ι : Type*} {ι' : Type*} {α : Type*} {β : Type*} {γ : Type*} {δ : Type*}
-          {v : ι → β}
-variables [decidable_eq ι] [decidable_eq ι'] [decidable_eq α] [decidable_eq β] [decidable_eq γ] [decidable_eq δ]
+variables {ι : Type*} {ι' : Type*} {α : Type*} {β : Type*} {γ : Type*} {δ : Type*} {v : ι → β}
+variables [decidable_eq ι] [decidable_eq ι']
+          [decidable_eq α] [decidable_eq β] [decidable_eq γ] [decidable_eq δ]
 
 section module
 variables [ring α] [add_comm_group β] [add_comm_group γ] [add_comm_group δ]
@@ -64,7 +36,7 @@ variables [module α β] [module α γ] [module α δ]
 variables {a b : α} {x y : β}
 include α
 
-
+-- TODO : rename
 section indexed
 
 variables (α) (v)
@@ -105,87 +77,8 @@ begin
   simp only [finsupp.map_domain_apply hf],
 end
 
-
-
---TODO: needed?
-def restrict' {α β} (f : α → β) (s : set α) : s → β := λ x, f x.val
-
---TODO: needed?
-lemma restrict_apply {α : Type*} (f : α → β) (s : set α) (a : subtype s) : restrict' f s a = f a := rfl
-
---TODO: needed?
-lemma image_restrict {α β : Type*} (f : α → β) (s : set α) (t : set s) :
-  restrict' f s '' t = f '' (subtype.val '' t) :=
-begin
-  ext,
-  simp [mem_image],
-  unfold restrict',
-  split,
-  { intros h,
-    rcases h with ⟨a,ha₁,ha₂,ha₃⟩,
-    use a,
-    use ha₁,
-    use ha₂,
-    exact ha₃ },
-  { intros h,
-    rcases h with ⟨a,⟨ha₁,ha₂⟩,ha₃⟩,
-    use a,
-    use ha₁,
-    exact ⟨ha₂, ha₃⟩ }
-end
-
---TODO: needed?
-lemma subtype.val_image_diff {α : Type*} {p : α → Prop} (s t : set (subtype p)) :
-  subtype.val '' (s \ t) = (subtype.val '' s \ subtype.val '' t) :=
-begin
-  ext x,
-  rw mem_diff,
-  rw mem_image,
-  split,
-  { intro h,
-    split,
-    apply mono_image (diff_subset _ _) h,
-    intro h',
-    rcases h with ⟨a, ⟨ha₁, ha₂⟩⟩,
-    rcases h' with ⟨b, ⟨hb₁, hb₂⟩⟩,
-    apply not_mem_of_mem_diff ha₁,
-    convert hb₁,
-    apply subtype.eq',
-    rw [ha₂, hb₂] },
-  { intro h,
-    simp only [mem_image] at h,
-    simp only [not_exists, not_and'] at h,
-    rcases h.1 with ⟨a , ha⟩,
-    use a,
-    exact ⟨(mem_diff _).2 ⟨ha.1, h.2 _ ha.2⟩, ha.2⟩ }
-end
-
--- TODO remove
-lemma smul_mem_span {α β : Type*} [ring α] [add_comm_group β] [module α β]
-  (a : α) {x : β} {s : set β} (h : x ∈ span α s) :
-  a • x ∈ span α s :=
-submodule.smul _ _ h --mem_span.2 (λ p hp, smul_mem _ _ (mem_span.1 h _ hp))
-
--- TODO: move
-lemma finsupp.eq_zero_of_zero_eq_one {ι α : Type*} [ring α]
-  (zero_eq_one : (0 : α) = 1) (l : ι →₀ α) : l = 0 :=
-  by ext i; simp [eq_zero_of_zero_eq_one α zero_eq_one (l i)]
-
--- TODO: move
-lemma module.eq_zero_of_zero_eq_one {α : Type*} {β : Type*} [ring α]
-  [add_comm_group β] [module α β] (zero_eq_one : (0 : α) = 1) (x : β) : x = 0 :=
-by rw [←one_smul α x, ←zero_eq_one, zero_smul]
-
--- TODO: move
-lemma submodule.eq_bot_of_zero_eq_one {α : Type*} {β : Type*} [ring α]
-  [add_comm_group β] [module α β] (p : submodule α β)
-  (zero_eq_one : (0 : α) = 1) : p = ⊥ :=
-by ext x; simp [module.eq_zero_of_zero_eq_one zero_eq_one x]
-
-
 lemma linear_independent_of_zero_eq_one (zero_eq_one : (0 : α) = 1) : linear_independent α v :=
-  linear_independent_iff.2 (λ l hl, finsupp.eq_zero_of_zero_eq_one zero_eq_one _)
-
+linear_independent_iff.2 (λ l hl, finsupp.eq_zero_of_zero_eq_one zero_eq_one _)
 
 theorem linear_independent_comp_subtype {s : set ι} :
   linear_independent α (v ∘ subtype.val : s → β) ↔
@@ -264,17 +157,7 @@ lemma linear_independent.unique (hv : linear_independent α v) {l₁ l₂ : ι �
   finsupp.total ι β α v l₁ = finsupp.total ι β α v l₂ → l₁ = l₂ :=
 by apply linear_map.ker_eq_bot.1 hv
 
-/-
-lemma zero_not_mem_of_linear_independent
-  {i : ι} (ne : 0 ≠ (1:α)) (hs : linear_independent α v s) (hi : v i = 0) :
-    i ∉ s :=
-λ h, ne $ eq.symm begin
-  suffices : (finsupp.single i 1 : ι →₀ α) i = 0, {simpa},
-  rw disjoint_def.1 hs _ (finsupp.single_mem_supported _ 1 h),
-  {refl}, {simp [hi]}
-end-/
-
-
+-- TODO: go back to old proof?
 -- TODO: Strengthen "hd" to what it was before?
 lemma linear_independent_Union_finite {η : Type*} {ιs : η → Type*}
   [decidable_eq η] [∀ j, decidable_eq (ιs j)]
@@ -317,27 +200,6 @@ begin
     rw ←hi₂,
     apply span_mono _ (h_subsums_in_span i),
     apply subset_bUnion_of_mem hi₁ },
-  /-have h_linindep_subsums : linear_independent α (restrict' subsums ↑(finsupp.split_support l)) univ,
-  { rw linear_independent_iff_not_smul_mem_span,
-    intros i hi a h_subsums_in_span',
-    by_contradiction,
-    apply h_subsums_neq_0 i (finset.mem_coe.1 (subtype.mem _)),
-    have := disjoint_def.1 (hd i (↑(finsupp.split_support l) \ {i})
-      (set.finite_subset (finset.finite_to_set _) (set.diff_subset _ _))
-      (by simp)) (a • subsums i) (smul_mem_span a (h_subsums_in_span i)),
-    rw restrict_apply at h_subsums_in_span',
-    rw [image_restrict subsums ↑(finsupp.split_support l), subtype.val_image_diff,
-        image_singleton, subtype.val_image_univ] at h_subsums_in_span',
-    rw ←span_span,
-    apply span_mono (h_image_subsums _),
-    have := h_subsums_in_span', },-/
-  /-have h_linindep_subsums : linear_independent α (restrict' subsums ↑(finsupp.split_support l)) univ,
-  {
-    apply hd _ _ (finset.finite_to_set (finsupp.split_support l)),
-    intros i,
-    rw restrict_apply,
-    apply h_subsums_in_span
-  },-/
   haveI : has_lift (finset α) (set α) := ⟨finset.to_set⟩,
   let const1 : (↑(finsupp.split_support l) : set η) →₀ α :=
     finsupp.on_finset finset.univ (λ _, (1 : α)) (λ _ _, finset.mem_univ _),
@@ -349,7 +211,7 @@ begin
       apply h_subsums_in_span },
     simp [finsupp.total_apply],
     unfold finsupp.sum,
-    simp [finsupp.on_finset, restrict_apply],
+    simp [finsupp.on_finset],
     rw ←hl,
     convert (finset.sum_image _).symm,
     { dsimp only [const1, finsupp.on_finset],
@@ -383,8 +245,6 @@ begin
   { unfold finsupp.split_support at h_split_support_empty,
     rwa [finset.image_eq_empty, finsupp.support_eq_empty] at h_split_support_empty }
 end
-
-
 
 lemma linear_independent_union {s t : set β}
   (hs : linear_independent α (λ x, x : s → β)) (ht : linear_independent α (λ x, x : t → β))
@@ -421,15 +281,15 @@ begin
 end
 
 lemma linear_independent_of_finite (s : set β)
-  (H : ∀ t ⊆ s, finite t → linear_independent α (subtype.val : t → β)) :
-  linear_independent α (subtype.val : s → β) :=
+  (H : ∀ t ⊆ s, finite t → linear_independent α (λ x, x : t → β)) :
+  linear_independent α (λ x, x : s → β) :=
 linear_independent_subtype.2 $
   λ l hl, linear_independent_subtype.1 (H _ hl (finset.finite_to_set _)) l (subset.refl _)
 
 lemma linear_independent_Union_of_directed {η : Type*}
   {s : η → set β} (hs : directed (⊆) s)
-  (h : ∀ i, linear_independent α (subtype.val : s i → β)) :
-  linear_independent α (subtype.val : (⋃ i, s i) → β) :=
+  (h : ∀ i, linear_independent α (λ x, x : s i → β)) :
+  linear_independent α (λ x, x : (⋃ i, s i) → β) :=
 begin
   haveI := classical.dec (nonempty η),
   by_cases hη : nonempty η,
@@ -444,19 +304,52 @@ end
 
 lemma linear_independent_sUnion_of_directed {s : set (set β)}
   (hs : directed_on (⊆) s)
-  (h : ∀ a ∈ s, linear_independent α (subtype.val : (a : set β) → β)) :
-  linear_independent α (subtype.val : (⋃₀ s) → β) :=
+  (h : ∀ a ∈ s, linear_independent α (λ x, x : (a : set β) → β)) :
+  linear_independent α (λ x, x : (⋃₀ s) → β) :=
 by rw sUnion_eq_Union; exact
 linear_independent_Union_of_directed
   ((directed_on_iff_directed _).1 hs) (by simpa using h)
 
 lemma linear_independent_bUnion_of_directed {η} {s : set η} {t : η → set β}
-  (hs : directed_on (t ⁻¹'o (⊆)) s) (h : ∀a∈s, linear_independent α (subtype.val : t a → β)) :
-  linear_independent α (subtype.val : (⋃a∈s, t a) → β) :=
+  (hs : directed_on (t ⁻¹'o (⊆)) s) (h : ∀a∈s, linear_independent α (λ x, x : t a → β)) :
+  linear_independent α (λ x, x : (⋃a∈s, t a) → β) :=
 by rw bUnion_eq_Union; exact
 linear_independent_Union_of_directed
   ((directed_comp _ _ _).2 $ (directed_on_iff_directed _).1 hs)
   (by simpa using h)
+
+lemma linear_independent_Union_finite' {ι : Type*} {f : ι → set β}
+  (hl : ∀i, linear_independent α (λ x, x : f i → β))
+  (hd : ∀i, ∀t:set ι, finite t → i ∉ t → disjoint (span α (f i)) (⨆i∈t, span α (f i))) :
+  linear_independent α (λ x, x : (⋃i, f i) → β) :=
+begin
+  classical,
+  convert linear_independent_Union_of_directed (directed_of_sup _) _,
+  rw [Union_eq_Union_finset f],
+  have := Union_subset_Union,
+  have := Union_subset_Union_const,
+  have := directed_of_sup,
+  have := directed_of_sup (assume t₁ t₂ ht, Union_subset_Union $ assume i, Union_subset_Union_const $ assume h, ht h),
+
+  convert linear_independent_Union_of_directed (directed_of_sup _) _,
+  apply_instance,
+  apply_instance,
+  sorry,
+  --refine linear_independent_Union_of_directed (directed_of_sup _) _,
+  assume t, rw [set.Union, ← finset.sup_eq_supr],
+  refine t.induction_on _ _,
+  { exact linear_independent_empty },
+  { rintros ⟨i⟩ s his ih,
+    rw [finset.sup_insert],
+    refine linear_independent_union (hl _) ih _,
+    rw [finset.sup_eq_supr],
+    refine disjoint_mono (le_refl _) _ (hd i _ _ his),
+    { simp only [(span_Union _).symm],
+      refine span_mono (@supr_le_supr2 (set β) _ _ _ _ _ _),
+      rintros ⟨i⟩, exact ⟨i, le_refl _⟩ },
+    { change finite (plift.up ⁻¹' s.to_set),
+      exact finite_preimage (assume i j, plift.up.inj) s.finite_to_set } }
+end
 
 section repr
 variables (hv : linear_independent α v)
@@ -550,41 +443,6 @@ begin
   { apply subtype.val_injective },
   { simpa },
 end
-
-/-
-def linear_independent.supported_equiv_span (hv : linear_independent α v) :
-  finsupp.supported α α (range v) ≃ₗ[α] span α (range v) :=
-begin
-  convert linear_equiv.of_bijective (finsupp.total_on β β α id (range v)) _ _; try { rw image_id },
-  apply (linear_independent_iff_total_on.1 hv.to_subtype_range),
-  apply (finsupp.total_on_range _ _),
-end
-
-def linear_independent.finsupp_equiv_span_range (hv : linear_independent α v):
-  (ι →₀ α) ≃ₗ[α] span α (range v) :=
-begin
-  by_cases zero_eq_one : 0 = (1:α),
-  { apply linear_equiv.of_bijective 0,
-    rw [linear_map.ker_zero, submodule.eq_bot_of_zero_eq_one ⊤ zero_eq_one],
-    rw [linear_map.range_zero, submodule.eq_bot_of_zero_eq_one ⊤ zero_eq_one] },
-  { let eq_univ_range: (univ : set ι) ≃ (range v) :=
-      equiv.trans (equiv.set.univ ι) (equiv.set.range v (hv.injective zero_eq_one)),
-    let eq₁ : (ι →₀ α) ≃ₗ[α] ((univ : set ι) →₀ α):=
-      finsupp.dom_lcongr (equiv.set.univ ι).symm,
-    let eq₂ : ((univ : set ι) →₀ α) ≃ₗ[α] finsupp.supported α α (univ : set ι) :=
-      (finsupp.supported_equiv_finsupp univ).symm,
-    let eq₃ : finsupp.supported α α (univ : set ι) ≃ₗ[α] finsupp.supported α α (range v) :=
-    finsupp.congr (univ : set ι) (range v) eq_univ_range,
-    let eq₄ : finsupp.supported α α (range v) ≃ₗ[α] span α (range v) :=
-      hv.supported_equiv_span,
-    exact ((eq₁.trans eq₂).trans eq₃).trans eq₄ }
-end
-
-def linear_independent.total_equiv_subtype (s : set β) (hs : linear_independent α (subtype.val : s → β)) :
-  finsupp.supported α α s ≃ₗ[α] span α s :=
-by convert hs.supported_equiv_span; rw subtype.range_val
-
--/
 
 -- TODO: move & rename vars
 lemma finsupp.range_total : (finsupp.total ι β α v).range = span α (range v) :=
@@ -731,7 +589,7 @@ begin
   have l_eq : l = _ := linear_map.ker_eq_bot.1 hv h_total_eq,
   dsimp only [l] at l_eq,
   rw ←finsupp.emb_domain_eq_map_domain at l_eq,
-  rcases single_of_emb_domain_single (repr ⟨v i, _⟩) f i (1 : α) zero_ne_one.symm l_eq with ⟨i', hi'⟩,
+  rcases finsupp.single_of_emb_domain_single (repr ⟨v i, _⟩) f i (1 : α) zero_ne_one.symm l_eq with ⟨i', hi'⟩,
   use i',
   exact hi'.2
 end

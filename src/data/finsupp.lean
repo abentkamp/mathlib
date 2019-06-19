@@ -202,6 +202,9 @@ lemma single_swap {α β : Type*} [decidable_eq α] [decidable_eq β] [has_zero 
   (single a₁ b : α → β) a₂ = (single a₂ b : α → β) a₁ :=
 by simp [single_apply]; ac_refl
 
+lemma unique_single [unique α] (x : α →₀ β) : x = single (default α) (x (default α)) :=
+by ext i; simp [unique.eq_default i]
+
 end single
 
 section on_finset

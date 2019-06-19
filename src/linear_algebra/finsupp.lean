@@ -307,6 +307,27 @@ begin
   exact λ i hi, ⟨single i 1, by simp [hi]⟩
 end
 
+lemma range_total : (finsupp.total α β γ v).range = span γ (range v) :=
+begin
+  ext x,
+  split,
+  { intros hx,
+    rw [linear_map.mem_range] at hx,
+    rcases hx with ⟨l, hl⟩,
+    rw ← hl,
+    rw finsupp.total_apply,
+    unfold finsupp.sum,
+    apply sum_mem (span γ (range v)),
+    { exact λ i hi, submodule.smul _ _ (subset_span (mem_range_self i)) },
+    apply_instance },
+  { apply span_le.2,
+    intros x hx,
+    rcases hx with ⟨i, hi⟩,
+    rw [mem_coe, linear_map.mem_range],
+    use finsupp.single i 1,
+    simp [hi] }
+end
+
 theorem lmap_domain_total (f : α → α') (g : β →ₗ[γ] β') (h : ∀ i, g (v i) = v' (f i)) :
   (finsupp.total α' β' γ v').comp (lmap_domain γ γ f) = g.comp (finsupp.total α β γ v) :=
 by ext l; simp [total_apply, finsupp.sum_map_domain_index, add_smul, h]
